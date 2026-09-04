@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Brightness control — two hardcoded commands, no detection.
+# Brightness control — three modes:
 #
 #   brightness laptop up     # +5% on internal (brightnessctl)
 #   brightness laptop down   # -5% on internal
-#   brightness ext up        # +5% on external (ddcutil -b 5 setvcp 10 + 5)
+#   brightness ext up        # +5% on external (ddcutil -b 5)
 #   brightness ext down      # -5% on external
+#   brightness both up       # +5% on both at once
+#   brightness both down     # -5% on both at once
 
 set -euo pipefail
 
@@ -12,34 +14,39 @@ DEVICE="${1:-}"
 ACTION="${2:-}"
 STEP=5
 
-if [[ "$DEVICE" != "laptop" && "$DEVICE" != "ext" ]]; then
-    echo "usage: $0 laptop|ext up|down" >&2; exit 1
+if [[ "$DEVICE" != "laptop" && "$DEVICE" != "ext" && "$DEVICE" != "both" ]]; then
+    echo "usage: $0 laptop|ext|both up|down" >&2; exit 1
 fi
 if [[ "$ACTION" != "up" && "$ACTION" != "down" ]]; then
-    echo "usage: $0 laptop|ext up|down" >&2; exit 1
+    echo "usage: $0 laptop|ext|both up|down" >&2; exit 1
 fi
 
 # External bus hardcoded — find yours with: ddcutil detect | grep HDMI
 EXT_BUS=5
 
+adjust_laptop() {
+    if [[ "$ACTION" == "up" ]]; then
+        brightnessctl set "${STEP}%+"
+    else
+        brightnessctl set "${STEP}%-"
+    fi
+}
+
+adjust_ext() {
+    # ddcutil's getvcp returns cached value, so use relative setvcp.
+    if [[ "$ACTION" == "up" ]]; then
+        ddcutil -b "$EXT_BUS" setvcp 10 + "$STEP" >/dev/null 2>&1
+    else
+        ddcutil -b "$EXT_BUS" setvcp 10 - "$STEP" >/dev/null 2>&1
+    fi
+    cur=$(ddcutil -b "$EXT_BUS" getvcp 10 --terse 2>/dev/null \
+        | sed -n 's/.*current value =\s*\([0-9]\+\).*/\1/p')
+    echo "ext: ${cur:-?}% (${ACTION} ${STEP})"
+}
+
 case "$DEVICE" in
-    laptop)
-        if [[ "$ACTION" == "up" ]]; then
-            brightnessctl set "${STEP}%+"
-        else
-            brightnessctl set "${STEP}%-"
-        fi
-        ;;
-    ext)
-        # ddcutil's getvcp returns cached value, so we use relative setvcp.
-        # Syntax: ddcutil setvcp <code> + <delta>  or  setvcp <code> - <delta>
-        if [[ "$ACTION" == "up" ]]; then
-            ddcutil -b "$EXT_BUS" setvcp 10 + "$STEP" >/dev/null 2>&1
-        else
-            ddcutil -b "$EXT_BUS" setvcp 10 - "$STEP" >/dev/null 2>&1
-        fi
-        cur=$(ddcutil -b "$EXT_BUS" getvcp 10 --terse 2>/dev/null \
-            | sed -n 's/.*current value =\s*\([0-9]\+\).*/\1/p')
-        echo "ext: ${cur:-?}% (${ACTION} ${STEP})"
-        ;;
+    laptop) adjust_laptop ;;
+    ext)    adjust_ext ;;
+    both)   adjust_laptop & adjust_ext & wait ;;
 esac
+
