@@ -1,0 +1,19 @@
+default-timeout=5000
+border-size=2
+border-color=#c4dfff
+background-color=#101418
+text-color=#ffffff
+progress-color=over #66acff
+
+[urgency=high]
+border-color=#ff624d
+text-color=#ff624d
+
+[urgency=low]
+border-color=#6794c3
+
+[app-name=Spotify]
+default-timeout=2000
+
+[category=mpd]
+default-timeout=2000
