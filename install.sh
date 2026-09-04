@@ -116,6 +116,48 @@ install_packages() {
             fi
         fi
     done
+
+    # hyprland-guiutils — not in apt on Ubuntu, so build from source.
+    # Provides: hyprland-welcome, hyprland-dialog, hyprland-run, hyprland-update-screen
+    if ! command -v hyprland-welcome >/dev/null 2>&1; then
+        log "Building hyprland-guiutils from source (not in apt)..."
+        local builddeps=(
+            git cmake build-essential pkg-config
+            libhyprlang-dev libhyprutils-dev libhyprtoolkit-dev
+            libpixman-1-dev libxkbcommon-dev libdrm-dev libcairo2-dev
+        )
+        case "$distro" in
+            ubuntu|debian|pop)
+                command -v sudo >/dev/null && SUDO=sudo || SUDO=
+                $SUDO apt install -y "${builddeps[@]}" || warn "Failed to install builddeps"
+                ;;
+            fedora)
+                command -v sudo >/dev/null && SUDO=sudo || SUDO=
+                $SUDO dnf install -y git cmake gcc-c++ pkgconfig \
+                    hyprlang-devel hyprutils-devel hyprtoolkit-devel \
+                    pixman-devel libxkbcommon-devel libdrm-devel cairo-devel \
+                    || warn "Failed to install builddeps"
+                ;;
+            arch|manjaro|endeavouros)
+                command -v sudo >/dev/null && SUDO=sudo || SUDO=
+                $SUDO pacman -S --needed --noconfirm git cmake base-devel pkgconf \
+                    hyprlang hyprutils hyprtoolkit \
+                    pixman libxkbcommon libdrm cairo \
+                    || warn "Failed to install builddeps"
+                ;;
+        esac
+
+        local builddir
+        builddir="$(mktemp -d)"
+        git clone --depth 1 https://github.com/hyprwm/hyprland-guiutils.git "$builddir/hyprland-guiutils" \
+            && cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+                   -S "$builddir/hyprland-guiutils" -B "$builddir/hyprland-guiutils/build" \
+            && cmake --build "$builddir/hyprland-guiutils/build" -j"$(nproc)" \
+            && $SUDO cmake --install "$builddir/hyprland-guiutils/build" \
+            && log "hyprland-guiutils installed" \
+            || warn "hyprland-guiutils build failed — install manually if needed"
+        rm -rf "$builddir"
+    fi
 }
 
 # ---------- symlink helper ----------
