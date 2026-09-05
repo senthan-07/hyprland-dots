@@ -1,25 +1,34 @@
-#!/usr/bin/env bash
-# theme-rofi — open rofi picker for kitty themes
-# Bound to Super+Shift+T
-#
-# Lists all themes in ~/.config/kitty/themes/ (excluding 'current' symlink)
-# and calls theme-set with the chosen one.
-
-set -euo pipefail
+#!/bin/bash
+# theme-rofi — open rofi picker, then call theme-set with the chosen theme.
+# Bound to Super+Shift+T.
 
 KITTY_DIR="$HOME/.config/kitty/themes"
 
-# List themes (basename without .conf, exclude 'current' symlink)
-themes=$(find "$KITTY_DIR" -maxdepth 1 -name '*.conf' ! -name 'current.conf' \
-    -printf '%f\n' | sed 's/\.conf$//' | sort)
+# Build theme list (one per line, skip 'current' symlink)
+themes=""
+for f in "$KITTY_DIR"/*.conf; do
+    [ -f "$f" ] || continue
+    name=$(basename "$f" .conf)
+    [ "$name" = "current" ] && continue
+    if [ -z "$themes" ]; then
+        themes="$name"
+    else
+        themes="$themes
+$name"
+    fi
+done
 
-# Show current theme at the top
-current=$(readlink "$KITTY_DIR/current.conf" 2>/dev/null | sed 's/\.conf$//' || echo "unknown")
+# Read current theme (for rofi prompt)
+current=$(basename "$(readlink "$KITTY_DIR/current.conf" 2>/dev/null)" .conf 2>/dev/null)
+[ -z "$current" ] && current="?"
 
-# Run rofi picker
-selected=$(printf '%s\n' "$themes" | rofi -dmenu -i -p "🎨 Theme" \
-    -mesg "current: $current" 2>/dev/null) || exit 0
+# Open rofi picker
+selected=$(printf '%s\n' "$themes" | rofi -dmenu -i \
+    -p " 🎨 Theme " \
+    -mesg "current: $current | Esc to cancel")
 
-[[ -z "$selected" ]] && exit 0
-
-theme-set "$selected"
+# If user selected something, switch
+if [ -n "$selected" ]; then
+    exec /home/senthan/.local/bin/theme-set "$selected"
+fi
+exit 0
