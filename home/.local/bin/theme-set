@@ -1,33 +1,41 @@
 #!/usr/bin/env bash
 # theme-set <name> — switch kitty theme
 #
+# Copies the chosen theme to ~/.config/kitty/active-theme.conf (the path
+# included by kitty.conf) and signals running kitty to reload.
+#
 # Usage:
-#   theme-set gruvbox-dark
-#   theme-set dynamic            (future: wallpaper-driven mode)
-#   theme-set                    (show current theme name)
+#   theme-set gruvbox-dark    # switch to specific theme
+#   theme-set                 # show current theme name
 
 set -euo pipefail
 
 KITTY_DIR="$HOME/.config/kitty/themes"
+ACTIVE="$HOME/.config/kitty/active-theme.conf"
 MODE_FILE="$HOME/.config/current-theme"
 
 NAME="${1:-}"
-[[ -z "$NAME" ]] && cat "$MODE_FILE" 2>/dev/null
+[[ -z "$NAME" ]] && cat "$MODE_FILE" 2>/dev/null && exit 0
 
-if [[ "$NAME" == "dynamic" ]]; then
-    # reserved for phase 3 — wallpaper-driven theme
-    echo "dynamic mode not yet implemented (phase 3)" >&2
-    exit 1
-fi
+[[ "$NAME" == "dynamic" ]] && { echo "dynamic mode not yet implemented (phase 3)" >&2; exit 1; }
 
 THEME_FILE="$KITTY_DIR/$NAME.conf"
-[[ -f "$THEME_FILE" ]] || { echo "theme not found: $NAME" >&2; echo "available: $(ls "$KITTY_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2; exit 1; }
+[[ -f "$THEME_FILE" ]] || {
+    echo "theme not found: $NAME" >&2
+    echo "available: $(ls "$KITTY_DIR"/*.conf | xargs -n1 basename -s .conf | sort -u | tr '\n' ' ')" >&2
+    exit 1
+}
 
-# Atomically swap symlink
+# Copy theme to fixed path (kitty's include directive reads this)
+cp "$THEME_FILE" "$ACTIVE"
+
+# Also update symlink for theme-rofi to know what's active
 ln -sfn "$NAME.conf" "$KITTY_DIR/current.conf"
+
 echo "$NAME" > "$MODE_FILE"
 
-# Apply to running kitty
+# Reload running kitty (SIGUSR1 = reload config including includes)
 pkill -USR1 -x kitty 2>/dev/null || true
+
 notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME" 2>/dev/null || true
 echo "theme: $NAME"
