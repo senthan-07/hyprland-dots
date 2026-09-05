@@ -3,7 +3,7 @@
 #
 #   brightness laptop up     # +5% on internal (brightnessctl)
 #   brightness laptop down   # -5% on internal
-#   brightness ext up        # +5% on external (ddcutil -b 5)
+#   brightness ext up        # +5% on external (ddcutil -b <auto-detected> setvcp 10 + 5)
 #   brightness ext down      # -5% on external
 #   brightness both up       # +5% on both at once
 #   brightness both down     # -5% on both at once
@@ -13,40 +13,90 @@ set -euo pipefail
 DEVICE="${1:-}"
 ACTION="${2:-}"
 STEP=5
+STATE="$HOME/.cache/brightness-ext-bus"
 
-if [[ "$DEVICE" != "laptop" && "$DEVICE" != "ext" && "$DEVICE" != "both" ]]; then
-    echo "usage: $0 laptop|ext|both up|down" >&2; exit 1
-fi
-if [[ "$ACTION" != "up" && "$ACTION" != "down" ]]; then
-    echo "usage: $0 laptop|ext|both up|down" >&2; exit 1
-fi
+# Parse ddcutil detect to find the I2C bus for a DRM connector name.
+# ddcutil detect emits one block per display, starting with either
+# "Display N:" (DDC-capable) or "Invalid display" (laptop/no-DDC).
+# We want the block whose "DRM connector" matches our target.
+ddc_bus_for_monitor() {
+    local target="${1:-HDMI-A-1}"
+    ddcutil detect 2>/dev/null | awk -v t="$target" '
+        BEGIN { bus=""; conn=""; invalid=0 }
+        /^Display [0-9]+:/ { invalid=0 }
+        /^Invalid display/ { invalid=1; next }
+        /I2C bus:/ {
+            # Extract just the bus number from "/dev/i2c-N" → "N"
+            # e.g. "   I2C bus:  /dev/i2c-5" → 5
+            n = split($0, a, "/")
+            bus = a[n]
+            sub(/^i2c-/, "", bus)
+        }
+        /DRM[_ ]connector:/ {
+            n = split($0, a, " ")
+            conn = a[n]
+            sub(/^card[0-9]+-/, "", conn)
+        }
+        /^$/ {
+            if (!invalid && conn == t && bus != "") { print bus; exit }
+        }'
+}
 
-# External bus hardcoded — find yours with: ddcutil detect | grep HDMI
-EXT_BUS=5
+# Cache the bus number so we don't run ddcutil detect on every keypress
+# (detect takes ~1s, setvcp is ~300ms — caching matters).
+# Cache invalidates after 24h or when the cached bus no longer exists.
+ext_bus() {
+    if [[ -f "$STATE" ]]; then
+        local cached
+        cached=$(cat "$STATE" 2>/dev/null || true)
+        if [[ -n "$cached" ]] && [[ -e "/dev/i2c-$cached" ]]; then
+            # Verify the cached bus still responds to DDC/CI
+            if ddcutil -b "$cached" getvcp 10 --terse 2>/dev/null | grep -q "current value"; then
+                echo "$cached"
+                return 0
+            fi
+        fi
+    fi
+    local bus
+    bus=$(ddc_bus_for_monitor "HDMI-A-1")
+    if [[ -n "$bus" ]]; then
+        mkdir -p "$(dirname "$STATE")"
+        echo "$bus" > "$STATE"
+        echo "$bus"
+    fi
+}
 
 adjust_laptop() {
     if [[ "$ACTION" == "up" ]]; then
-        brightnessctl set "${STEP}%+"
+        brightnessctl set "${STEP}%+" >/dev/null
     else
         brightnessctl set "${STEP}%-"
     fi
 }
 
 adjust_ext() {
-    # ddcutil's getvcp returns cached value, so use relative setvcp.
-    if [[ "$ACTION" == "up" ]]; then
-        ddcutil -b "$EXT_BUS" setvcp 10 + "$STEP" >/dev/null 2>&1
-    else
-        ddcutil -b "$EXT_BUS" setvcp 10 - "$STEP" >/dev/null 2>&1
+    local bus
+    bus=$(ext_bus)
+    if [[ -z "$bus" ]]; then
+        echo "no external monitor (HDMI-A-1) found" >&2
+        exit 1
     fi
-    cur=$(ddcutil -b "$EXT_BUS" getvcp 10 --terse 2>/dev/null \
+    if [[ "$ACTION" == "up" ]]; then
+        ddcutil -b "$bus" setvcp 10 + "$STEP" >/dev/null 2>&1
+    else
+        ddcutil -b "$bus" setvcp 10 - "$STEP" >/dev/null 2>&1
+    fi
+    cur=$(ddcutil -b "$bus" getvcp 10 --terse 2>/dev/null \
         | sed -n 's/.*current value =\s*\([0-9]\+\).*/\1/p')
-    echo "ext: ${cur:-?}% (${ACTION} ${STEP})"
+    echo "ext (bus $bus): ${cur:-?}% (${ACTION} ${STEP})"
 }
 
 case "$DEVICE" in
     laptop) adjust_laptop ;;
     ext)    adjust_ext ;;
     both)   adjust_laptop & adjust_ext & wait ;;
+    *)
+        echo "usage: $0 laptop|ext|both up|down" >&2
+        exit 1
+        ;;
 esac
-
