@@ -1,44 +1,73 @@
 #!/usr/bin/env bash
-# theme-set <name> — switch kitty theme
+# theme-set <name> — switch both Kitty + Hyprland theme atomically.
 #
-# Concatenates kitty.conf.base + themes/<name>.conf → kitty.conf
-# (No include directive used; theme IS the config.)
-#
-# Usage:
-#   theme-set gruvbox-dark    # switch to specific theme
-#   theme-set                 # show current theme name
+# Validates BOTH theme files exist BEFORE making any changes,
+# preventing partially-applied state (Kitty updated, Hyprland broken).
+# Writes kitty.conf via temp file + atomic rename (no partial writes).
+# State file is only updated AFTER all config + symlinks applied.
 
 set -euo pipefail
 
 KITTY_DIR="$HOME/.config/kitty"
-THEMES_DIR="$KITTY_DIR/themes"
-BASE="$KITTY_DIR/kitty.conf.base"
-CONF="$KITTY_DIR/kitty.conf"
+KITTY_THEMES_DIR="$KITTY_DIR/themes"
+KITTY_BASE="$KITTY_DIR/kitty.conf.base"
+KITTY_CONF="$KITTY_DIR/kitty.conf"
+KITTY_THEME="$KITTY_THEMES_DIR/current.conf"
+
+HYPR_THEMES_DIR="$HOME/.config/hypr/themes"
+HYPR_CURRENT="$HYPR_THEMES_DIR/current.conf"
+
 MODE_FILE="$HOME/.config/current-theme"
 
 NAME="${1:-}"
-[[ -z "$NAME" ]] && cat "$MODE_FILE" 2>/dev/null && exit 0
+if [[ -z "$NAME" ]]; then
+    cat "$MODE_FILE" 2>/dev/null
+    exit 0
+fi
 
-[[ "$NAME" == "dynamic" ]] && { echo "dynamic mode not yet implemented (phase 3)" >&2; exit 1; }
+# Reserved for future phase 3
+if [[ "$NAME" == "dynamic" ]]; then
+    echo "theme-set: 'dynamic' mode reserved for phase 3 (matugen integration)" >&2
+    exit 1
+fi
 
-THEME_FILE="$THEMES_DIR/$NAME.conf"
-[[ -f "$BASE" ]] || { echo "missing base: $BASE" >&2; exit 1; }
-[[ -f "$THEME_FILE" ]] || {
-    echo "theme not found: $NAME" >&2
-    echo "available: $(ls "$THEMES_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2
+# === VALIDATE FIRST — no modifications until both files confirmed ===
+KITTY_THEME_FILE="$KITTY_THEMES_DIR/$NAME.conf"
+HYPR_THEME_FILE="$HYPR_THEMES_DIR/$NAME.conf"
+
+[[ -f "$KITTY_BASE" ]] || { echo "theme-set: missing kitty base config: $KITTY_BASE" >&2; exit 1; }
+[[ -f "$KITTY_THEME_FILE" ]] || {
+    echo "theme-set: missing kitty theme: $KITTY_THEME_FILE" >&2
+    echo "available kitty: $(ls "$KITTY_THEMES_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2
+    exit 1
+}
+[[ -f "$HYPR_THEME_FILE" || -L "$HYPR_THEME_FILE" ]] || {
+    echo "theme-set: missing hyprland theme: $HYPR_THEME_FILE" >&2
+    echo "available hyprland: $(ls "$HYPR_THEMES_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2
     exit 1
 }
 
-# Concatenate base + theme → new kitty.conf
-cat "$BASE" "$THEME_FILE" > "$CONF"
+# === APPLY ATOMICALLY ===
 
-# Update symlink for theme-rofi to show current theme name
-ln -sfn "$NAME.conf" "$THEMES_DIR/current.conf"
+# 1. Kitty: write to temp file then atomic rename (avoids partial reads by Hyprland/other processes)
+KITTY_TMP="$(mktemp "${KITTY_CONF}.XXXXXX")"
+cat "$KITTY_BASE" "$KITTY_THEME_FILE" > "$KITTY_TMP"
+mv "$KITTY_TMP" "$KITTY_CONF"
 
+# 2. Kitty: update symlink
+ln -sfn "$NAME.conf" "$KITTY_THEME"
+
+# 3. Hyprland: update symlink
+ln -sfn "$NAME.conf" "$HYPR_CURRENT"
+
+# 4. Save state (last — only after all above succeeded)
 echo "$NAME" > "$MODE_FILE"
 
-# Try to reload running kitty (best-effort; new windows pick up new config automatically)
+# 5. Reload Hyprland (DO NOT suppress errors during Phase 2 testing)
+hyprctl reload
+
+# 6. Best-effort kitty reload — new windows pick up new theme regardless
 pkill -USR1 -x kitty 2>/dev/null || true
 
-notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME" 2>/dev/null || true
+notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME (kitty + hyprland)" 2>/dev/null || true
 echo "theme: $NAME"
