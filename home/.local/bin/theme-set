@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# theme-set <name> — switch both Kitty + Hyprland theme atomically.
+# theme-set <name> — switch all 4 components atomically.
 #
-# Validates BOTH theme files exist BEFORE making any changes,
-# preventing partially-applied state (Kitty updated, Hyprland broken).
-# Writes kitty.conf via temp file + atomic rename (no partial writes).
-# State file is only updated AFTER all config + symlinks applied.
+# Validates ALL FOUR theme files exist BEFORE any modifications.
+# Prevents partially-applied state if any component theme is missing.
+# Writes kitty.conf via temp file + atomic rename.
+# State file updated AFTER all configs + symlinks applied.
 
 set -euo pipefail
 
@@ -16,6 +16,12 @@ KITTY_THEME="$KITTY_THEMES_DIR/current.conf"
 
 HYPR_THEMES_DIR="$HOME/.config/hypr/themes"
 HYPR_CURRENT="$HYPR_THEMES_DIR/current.conf"
+
+WAYBAR_THEMES_DIR="$HOME/.config/waybar/themes"
+WAYBAR_CURRENT="$WAYBAR_THEMES_DIR/current.css"
+
+ROFI_THEMES_DIR="$HOME/.config/rofi/themes"
+ROFI_CURRENT="$ROFI_THEMES_DIR/current.rasi"
 
 MODE_FILE="$HOME/.config/current-theme"
 
@@ -31,43 +37,60 @@ if [[ "$NAME" == "dynamic" ]]; then
     exit 1
 fi
 
-# === VALIDATE FIRST — no modifications until both files confirmed ===
+# === VALIDATE ALL FOUR BEFORE ANY CHANGE ===
 KITTY_THEME_FILE="$KITTY_THEMES_DIR/$NAME.conf"
 HYPR_THEME_FILE="$HYPR_THEMES_DIR/$NAME.conf"
+WAYBAR_THEME_FILE="$WAYBAR_THEMES_DIR/$NAME.css"
+ROFI_THEME_FILE="$ROFI_THEMES_DIR/$NAME.rasi"
 
-[[ -f "$KITTY_BASE" ]] || { echo "theme-set: missing kitty base config: $KITTY_BASE" >&2; exit 1; }
+[[ -f "$KITTY_BASE" ]] || { echo "theme-set: missing kitty base: $KITTY_BASE" >&2; exit 1; }
 [[ -f "$KITTY_THEME_FILE" ]] || {
     echo "theme-set: missing kitty theme: $KITTY_THEME_FILE" >&2
     echo "available kitty: $(ls "$KITTY_THEMES_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2
     exit 1
 }
-[[ -f "$HYPR_THEME_FILE" || -L "$HYPR_THEME_FILE" ]] || {
+[[ -f "$HYPR_THEME_FILE" ]] || {
     echo "theme-set: missing hyprland theme: $HYPR_THEME_FILE" >&2
     echo "available hyprland: $(ls "$HYPR_THEMES_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2
     exit 1
 }
+[[ -f "$WAYBAR_THEME_FILE" ]] || {
+    echo "theme-set: missing waybar theme: $WAYBAR_THEME_FILE" >&2
+    echo "available waybar: $(ls "$WAYBAR_THEMES_DIR"/*.css | xargs -n1 basename -s .css | grep -v current | sort -u | tr '\n' ' ')" >&2
+    exit 1
+}
+[[ -f "$ROFI_THEME_FILE" ]] || {
+    echo "theme-set: missing rofi theme: $ROFI_THEME_FILE" >&2
+    echo "available rofi: $(ls "$ROFI_THEMES_DIR"/*.rasi | xargs -n1 basename -s .rasi | grep -v current | sort -u | tr '\n' ' ')" >&2
+    exit 1
+}
 
-# === APPLY ATOMICALLY ===
+# === APPLY (only after all 4 validations passed) ===
 
-# 1. Kitty: write to temp file then atomic rename (avoids partial reads by Hyprland/other processes)
+# 1. Kitty: write to temp file then atomic rename
 KITTY_TMP="$(mktemp "${KITTY_CONF}.XXXXXX")"
 cat "$KITTY_BASE" "$KITTY_THEME_FILE" > "$KITTY_TMP"
 mv "$KITTY_TMP" "$KITTY_CONF"
 
-# 2. Kitty: update symlink
+# 2. Symlinks (all 4 components)
 ln -sfn "$NAME.conf" "$KITTY_THEME"
-
-# 3. Hyprland: update symlink
 ln -sfn "$NAME.conf" "$HYPR_CURRENT"
+ln -sfn "$NAME.css"  "$WAYBAR_CURRENT"
+ln -sfn "$NAME.rasi" "$ROFI_CURRENT"
 
-# 4. Save state (last — only after all above succeeded)
+# 3. Save state (last — only after all above succeeded)
 echo "$NAME" > "$MODE_FILE"
 
-# 5. Reload Hyprland (DO NOT suppress errors during Phase 2 testing)
+# 4. Reload Hyprland (DO NOT suppress errors during testing)
 hyprctl reload
 
-# 6. Best-effort kitty reload — new windows pick up new theme regardless
+# 5. Reload Waybar via USR1 (official reload signal)
+pkill -USR1 -x waybar 2>/dev/null || true
+
+# 6. Best-effort kitty reload (new windows pick up new theme regardless)
 pkill -USR1 -x kitty 2>/dev/null || true
 
-notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME (kitty + hyprland)" 2>/dev/null || true
+# Rofi: no reload needed — next launch reads the active theme.
+
+notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME (all 4 components)" 2>/dev/null || true
 echo "theme: $NAME"

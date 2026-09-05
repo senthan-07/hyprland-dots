@@ -1,4 +1,4 @@
-@import "colors.css";
+@import "themes/current.css";
 
 * {
     all: unset;
@@ -6,9 +6,16 @@
     font-size: 14px;
 }
 
+tooltip{
+    background-color: @bg1;
+    color: @fg;
+    border-radius: 12px;
+}
+
 .modules-center {
     background-color: @bg1;
-    padding: 2px 12px;
+    color: @fg;
+    padding: 4px 18px;
     border-radius: 99px;
 
 }
@@ -18,15 +25,17 @@
 }
 
 #workspaces {
+    min-width: 100px;
     background-color: @bg2;
-    padding: 2px 4px;
-    margin: 2px 0;
+    font-size: 0.95rem;
+    padding: 2px 3px;
+    margin: 3px 0;
     border-radius: 99px;
 }
 
 #workspaces button {
     background-color: @bg3;
-    padding: 2px 4px;
+    padding: 0px 5px;
     border-radius: 99px;
     margin: 0 2px;
     transition: all 300ms ease-in-out;
@@ -43,4 +52,22 @@
     min-width: 1.5rem;
     font-weight: 500;
     transition: none;
+}
+
+#battery{
+    background-color: @green;
+    margin: 6px 0;
+    padding: 0 8px;
+    border-radius: 99px;
+    font-weight: 500;
+    color: @bg1;
+    letter-spacing: -1px;
+}
+
+#battery.warning{
+    background-color: @yellow;
+}
+
+#battery.critical{
+    background-color: @red;
 }
