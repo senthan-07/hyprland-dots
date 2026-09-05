@@ -84,8 +84,10 @@ echo "$NAME" > "$MODE_FILE"
 # 4. Reload Hyprland (DO NOT suppress errors during testing)
 hyprctl reload
 
-# 5. Reload Waybar via USR1 (official reload signal)
-pkill -USR1 -x waybar 2>/dev/null || true
+# 5. Reload Waybar — USR1 alone doesn't update colors in this waybar build,
+#    so kill+restart is the safe path (matches launch.sh pattern).
+pkill -x waybar 2>/dev/null || true
+nohup waybar >/dev/null 2>&1 &
 
 # 6. Best-effort kitty reload (new windows pick up new theme regardless)
 pkill -USR1 -x kitty 2>/dev/null || true
