@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# theme-rofi — open rofi picker for kitty themes
+# Bound to Super+Shift+T
+#
+# Lists all themes in ~/.config/kitty/themes/ (excluding 'current' symlink)
+# and calls theme-set with the chosen one.
+
+set -euo pipefail
+
+KITTY_DIR="$HOME/.config/kitty/themes"
+
+# List themes (basename without .conf, exclude 'current' symlink)
+themes=$(find "$KITTY_DIR" -maxdepth 1 -name '*.conf' ! -name 'current.conf' \
+    -printf '%f\n' | sed 's/\.conf$//' | sort)
+
+# Show current theme at the top
+current=$(readlink "$KITTY_DIR/current.conf" 2>/dev/null | sed 's/\.conf$//' || echo "unknown")
+
+# Run rofi picker
+selected=$(printf '%s\n' "$themes" | rofi -dmenu -i -p "🎨 Theme" \
+    -mesg "current: $current" 2>/dev/null) || exit 0
+
+[[ -z "$selected" ]] && exit 0
+
+theme-set "$selected"

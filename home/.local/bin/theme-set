@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# theme-set <name> — switch kitty theme
+#
+# Usage:
+#   theme-set gruvbox-dark
+#   theme-set dynamic            (future: wallpaper-driven mode)
+#   theme-set                    (show current theme name)
+
+set -euo pipefail
+
+KITTY_DIR="$HOME/.config/kitty/themes"
+MODE_FILE="$HOME/.config/current-theme"
+
+NAME="${1:-}"
+[[ -z "$NAME" ]] && cat "$MODE_FILE" 2>/dev/null
+
+if [[ "$NAME" == "dynamic" ]]; then
+    # reserved for phase 3 — wallpaper-driven theme
+    echo "dynamic mode not yet implemented (phase 3)" >&2
+    exit 1
+fi
+
+THEME_FILE="$KITTY_DIR/$NAME.conf"
+[[ -f "$THEME_FILE" ]] || { echo "theme not found: $NAME" >&2; echo "available: $(ls "$KITTY_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2; exit 1; }
+
+# Atomically swap symlink
+ln -sfn "$NAME.conf" "$KITTY_DIR/current.conf"
+echo "$NAME" > "$MODE_FILE"
+
+# Apply to running kitty
+pkill -USR1 -x kitty 2>/dev/null || true
+notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME" 2>/dev/null || true
+echo "theme: $NAME"
