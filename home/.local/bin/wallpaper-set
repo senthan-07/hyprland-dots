@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# wallpaper-set — set the wallpaper via swww, then optionally select a
+# matching theme based on theme-mode (auto=match to existing theme, manual=keep current).
+#
+# Usage: wallpaper-set /path/to/image.jpg
+#
+# Side effects:
+#   - Calls `swww img` to apply the wallpaper with a smooth transition
+#   - Creates/updates ~/.cache/current-wallpaper  (legacy autostart consumer)
+#   - Creates/updates ~/.cache/last-wallpaper    (autostart reads on boot)
+#   - If theme-mode == auto: run theme-match and theme-set if confident
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: wallpaper-set /path/to/image" >&2
+    exit 1
+fi
+
+img="$(readlink -f "$1")"
+[[ -f "$img" ]] || { echo "wallpaper-set: file not found: $img" >&2; exit 1; }
+
+command -v swww >/dev/null \
+    || { echo "wallpaper-set: swww not found (is swww-daemon running?)" >&2; exit 1; }
+
+# Apply wallpaper via swww with a smooth transition.
+swww img "$img" \
+    --transition-type grow \
+    --transition-pos center \
+    --transition-step 90 \
+    --transition-fps 60 \
+    --transition-duration 1
+
+# Save path for autostart + legacy consumers.
+mkdir -p "$HOME/.cache"
+ln -sf "$img" "$HOME/.cache/current-wallpaper"
+ln -sf "$img" "$HOME/.cache/last-wallpaper"
+
+echo "wallpaper-set: $img"
+
+# Auto theme-matching: only when theme-mode == auto
+MODE_FILE="$HOME/.config/theme-mode"
+[[ -f "$MODE_FILE" ]] || echo "auto" > "$MODE_FILE"
+MODE="$(cat "$MODE_FILE" 2>/dev/null || echo "auto")"
+
+if [[ "$MODE" == "auto" ]] && command -v theme-match >/dev/null 2>&1; then
+    MATCHED="$(theme-match "$img" 2>/dev/null || true)"
+    CURRENT="$(cat "$HOME/.config/current-theme" 2>/dev/null || echo "")"
+    if [[ -n "$MATCHED" ]] && [[ "$MATCHED" != "$CURRENT" ]]; then
+        echo "auto-theme: $CURRENT → $MATCHED"
+        theme-set "$MATCHED" >/dev/null 2>&1 || true
+    fi
+fi

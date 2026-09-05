@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""theme-match — analyze a wallpaper and select the best matching theme.
+
+Outputs the winning theme name to stdout (e.g. "nord").
+Non-zero exit on analysis failure or when result is ambiguous.
+
+Usage:
+    theme-match /path/to/image.jpg         # print best theme
+    theme-match /path/to/image.jpg --list  # print scores for all themes
+"""
+from __future__ import annotations
+
+import argparse
+import colorsys
+import json
+import os
+import sys
+import warnings
+from datetime import datetime
+from pathlib import Path
+
+# Silence Pillow's deprecation warnings about getdata()
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+LOG = Path.home() / ".cache" / "theme-match.log"
+
+# Theme profiles — manually tuned to match the curated palettes.
+# target_lightness: 0.0 = pure dark, 1.0 = pure bright
+# hue_family: "warm" (red/orange/yellow), "cool" (cyan/blue/purple/pink), or "neutral"
+# sat_pref: "low", "medium", "high"
+THEMES = {
+    "gruvbox-dark":     {"target_lightness": 0.13, "hue_family": "warm",    "sat_pref": "medium"},
+    "gruvbox-light":    {"target_lightness": 0.90, "hue_family": "warm",    "sat_pref": "medium"},
+    "nord":             {"target_lightness": 0.23, "hue_family": "cool",    "sat_pref": "low"},
+    "dracula":          {"target_lightness": 0.18, "hue_family": "cool",    "sat_pref": "high"},
+    "catppuccin-mocha": {"target_lightness": 0.27, "hue_family": "cool",    "sat_pref": "medium"},
+    "tokyo-night":      {"target_lightness": 0.12, "hue_family": "cool",    "sat_pref": "medium"},
+}
+
+# Confidence thresholds
+MIN_TOP_SCORE = 35.0   # the winner must score at least this
+MIN_MARGIN    = 5.0    # winner must beat 2nd place by at least this
+
+
+def log(msg: str) -> None:
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a") as f:
+        f.write(f"[{datetime.now().isoformat()}] {msg}\n")
+
+
+def analyze(path: Path) -> dict:
+    """Extract brightness, hue, saturation from a wallpaper."""
+    try:
+        from PIL import Image
+    except ImportError:
+        raise RuntimeError("Pillow not installed (apt: python3-pil)")
+
+    with Image.open(path) as img:
+        img = img.convert("RGB")
+        # Downsample for speed — 100x100 keeps color statistics reliable
+        img.thumbnail((100, 100))
+        pixels = list(img.getdata())
+    n = len(pixels)
+    r = sum(p[0] for p in pixels) / n / 255
+    g = sum(p[1] for p in pixels) / n / 255
+    b = sum(p[2] for p in pixels) / n / 255
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    return {
+        "path":         str(path),
+        "hue":          round(h * 360, 1),         # 0–360
+        "lightness":    round(l, 3),                 # 0–1
+        "saturation":   round(s, 3),                 # 0–1
+        "is_dark":      l < 0.5,
+        "warm":         (h * 360) < 60 or (h * 360) > 300,
+        "cool":         180 < (h * 360) < 300,
+    }
+
+
+def score_theme(theme_name: str, theme: dict, wp: dict) -> float:
+    """Compute a 0–100 match score for a theme against wallpaper."""
+    score = 0.0
+
+    # Lightness match (40 points)
+    target_l = theme["target_lightness"]
+    distance = abs(wp["lightness"] - target_l)
+    # Normalize distance — 0.5 difference = full miss
+    score += max(0.0, 40.0 * (1.0 - distance / 0.5))
+
+    # Hue family match (40 points)
+    if theme["hue_family"] == "warm" and wp["warm"]:
+        score += 40.0
+    elif theme["hue_family"] == "cool" and wp["cool"]:
+        score += 40.0
+    elif theme["hue_family"] == "neutral":
+        score += 25.0
+    else:
+        score += 10.0  # partial credit
+
+    # Saturation preference (20 points)
+    if theme["sat_pref"] == "low":
+        if wp["saturation"] < 0.30:
+            score += 20.0
+        elif wp["saturation"] < 0.55:
+            score += 12.0
+    elif theme["sat_pref"] == "medium":
+        if 0.20 <= wp["saturation"] <= 0.55:
+            score += 20.0
+        else:
+            score += 10.0
+    elif theme["sat_pref"] == "high":
+        if wp["saturation"] > 0.45:
+            score += 20.0
+        elif wp["saturation"] > 0.25:
+            score += 12.0
+
+    return score
+
+
+def choose(wp: dict) -> tuple[str, float, list[tuple[str, float]]]:
+    """Return (winner, top_score, all_scored_sorted_desc)."""
+    scored = [(name, score_theme(name, theme, wp)) for name, theme in THEMES.items()]
+    scored.sort(key=lambda t: t[1], reverse=True)
+    return scored[0][0], scored[0][1], scored
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Match wallpaper to best theme.")
+    parser.add_argument("wallpaper", help="Path to the wallpaper image")
+    parser.add_argument("--list", action="store_true",
+                        help="Show full wallpaper analysis + all theme scores")
+    args = parser.parse_args()
+
+    path = Path(args.wallpaper).expanduser().resolve()
+    if not path.is_file():
+        print(f"theme-match: file not found: {path}", file=sys.stderr)
+        log(f"FAIL: file not found: {path}")
+        return 1
+
+    try:
+        wp = analyze(path)
+    except Exception as e:
+        print(f"theme-match: analyze failed: {e}", file=sys.stderr)
+        log(f"FAIL analyze: {path}: {e}")
+        return 2
+
+    name, top, all_scored = choose(wp)
+
+    # Confidence checks
+    if top < MIN_TOP_SCORE:
+        reason = f"top score {top:.1f} below threshold {MIN_TOP_SCORE}"
+        log(f"AMBIGUOUS ({path}): {reason}")
+        if args.list:
+            print(json.dumps({"wallpaper": wp, "scores": all_scored,
+                              "winner": name, "top_score": top,
+                              "rejected": reason}, indent=2))
+        return 3  # ambiguous
+
+    if len(all_scored) >= 2 and (all_scored[0][1] - all_scored[1][1]) < MIN_MARGIN:
+        reason = (f"margin {all_scored[0][1] - all_scored[1][1]:.1f} below "
+                   f"threshold {MIN_MARGIN}")
+        log(f"AMBIGUOUS ({path}): {reason}")
+        if args.list:
+            print(json.dumps({"wallpaper": wp, "scores": all_scored,
+                              "winner": name, "top_score": top,
+                              "rejected": reason}, indent=2))
+        return 3
+
+    log(f"OK ({path}): {name} (score {top:.1f})")
+
+    if args.list:
+        print(json.dumps({"wallpaper": wp, "scores": all_scored,
+                          "winner": name, "top_score": top}, indent=2))
+    else:
+        print(name)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

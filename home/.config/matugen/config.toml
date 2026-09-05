@@ -1,0 +1,16 @@
+[config]
+
+version_check = false
+
+# Fallback color if image extraction fails
+fallback_color = "#7c3aed"
+
+# Template syntax
+expr_prefix = "{{"
+expr_postfix = "}}"
+block_prefix = "<*"
+block_postfix = "*>"
+
+# Matugen is no longer used for theme generation (Phase 3).
+# Active themes are managed via theme-set (kitty + hyprland + waybar + rofi).
+# Wallpaper-driven theme matching is handled by ~/.local/bin/theme-match.

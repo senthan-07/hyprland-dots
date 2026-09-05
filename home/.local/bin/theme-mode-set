@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# theme-mode-set <auto|manual> — switch between automatic and manual
+# wallpaper-driven theme selection.
+#
+# auto   = wallpaper changes automatically select a matching theme
+# manual = wallpaper changes do NOT override the current theme
+#
+# Usage:
+#   theme-mode-set            # show current mode
+#   theme-mode-set auto       # enable auto wallpaper-driven themes
+#   theme-mode-set manual     # disable auto (theme stays put)
+
+set -euo pipefail
+
+MODE_FILE="$HOME/.config/theme-mode"
+[[ -f "$MODE_FILE" ]] || echo "auto" > "$MODE_FILE"
+
+MODE="${1:-}"
+
+if [[ -z "$MODE" ]]; then
+    echo "current mode: $(cat "$MODE_FILE")"
+    echo "usage: theme-mode-set auto|manual"
+    exit 0
+fi
+
+case "$MODE" in
+    auto)   echo "auto"   > "$MODE_FILE" ;;
+    manual) echo "manual" > "$MODE_FILE" ;;
+    *)      echo "invalid mode: $MODE (expected auto or manual)" >&2; exit 1 ;;
+esac
+
+echo "theme-mode: $(cat "$MODE_FILE")"
