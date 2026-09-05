@@ -10,6 +10,9 @@
 #   - Creates/updates ~/.cache/last-wallpaper    (autostart reads on boot)
 #   - If theme-mode == auto: run theme-match and theme-set if confident
 
+# ~/.local/bin holds theme-match/theme-set. Hyprland's keybind PATH omits it.
+export PATH="$HOME/.local/bin:$PATH"
+
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then

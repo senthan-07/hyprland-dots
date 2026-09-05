@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# wallpaper-picker — list wallpapers via rofi, calls wallpaper-set on selection.
+# Bound to Super+W.
+#
+# Flow:
+#   - List wallpapers from $WALLPAPER_DIR (default ~/Pictures/wallpapers)
+#   - Show in rofi (filenames only — no previews per design)
+#   - On selection: call wallpaper-set (which handles swww + theme-match)
+#   - Esc/cancel: do nothing
+
+set -euo pipefail
+
+WALLDIR="${WALLPAPER_DIR:-$HOME/Pictures/wallpapers}"
+
+# Build theme list (one per line, basename only)
+list=""
+for f in "$WALLDIR"/*.{jpg,jpeg,png,webp}; do
+    [[ -f "$f" ]] || continue
+    name=$(basename "$f")
+    [[ -z "$list" ]] && list="$name" || list="$list
+$name"
+done
+
+[[ -z "$list" ]] && {
+    notify-send -u critical -t 3000 "🖼  Wallpaper" "No wallpapers in $WALLDIR"
+    exit 1
+}
+
+# Show current wallpaper (resolve symlink at ~/.cache/current-wallpaper)
+current=$(basename "$(readlink "$HOME/.cache/current-wallpaper" 2>/dev/null)" 2>/dev/null)
+[[ -z "$current" ]] && current="?"
+
+# Run rofi picker
+# Disable pipefail temporarily — rofi returns non-zero on Esc/cancel
+set +o pipefail
+selected=$(printf '%s\n' "$list" | rofi -dmenu -i \
+    -p " 🖼  Wallpaper " \
+    -mesg "current: ${current} | Esc to cancel")
+set -o pipefail
+
+[[ -z "$selected" ]] && exit 0
+
+# Find the actual path for the selected filename
+selected_path=$(find "$WALLDIR" -maxdepth 1 -name "$selected" -type f 2>/dev/null | head -1)
+[[ -z "$selected_path" ]] && { echo "file not found: $selected" >&2; exit 1; }
+
+# Full path — Hyprland's keybind PATH does not include ~/.local/bin
+exec /home/senthan/.local/bin/wallpaper-set "$selected_path"
