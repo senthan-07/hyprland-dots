@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # theme-set <name> — switch kitty theme
 #
-# Copies the chosen theme to ~/.config/kitty/active-theme.conf (the path
-# included by kitty.conf) and signals running kitty to reload.
+# Concatenates kitty.conf.base + themes/<name>.conf → kitty.conf
+# (No include directive used; theme IS the config.)
 #
 # Usage:
 #   theme-set gruvbox-dark    # switch to specific theme
@@ -10,8 +10,10 @@
 
 set -euo pipefail
 
-KITTY_DIR="$HOME/.config/kitty/themes"
-ACTIVE="$HOME/.config/kitty/active-theme.conf"
+KITTY_DIR="$HOME/.config/kitty"
+THEMES_DIR="$KITTY_DIR/themes"
+BASE="$KITTY_DIR/kitty.conf.base"
+CONF="$KITTY_DIR/kitty.conf"
 MODE_FILE="$HOME/.config/current-theme"
 
 NAME="${1:-}"
@@ -19,22 +21,23 @@ NAME="${1:-}"
 
 [[ "$NAME" == "dynamic" ]] && { echo "dynamic mode not yet implemented (phase 3)" >&2; exit 1; }
 
-THEME_FILE="$KITTY_DIR/$NAME.conf"
+THEME_FILE="$THEMES_DIR/$NAME.conf"
+[[ -f "$BASE" ]] || { echo "missing base: $BASE" >&2; exit 1; }
 [[ -f "$THEME_FILE" ]] || {
     echo "theme not found: $NAME" >&2
-    echo "available: $(ls "$KITTY_DIR"/*.conf | xargs -n1 basename -s .conf | sort -u | tr '\n' ' ')" >&2
+    echo "available: $(ls "$THEMES_DIR"/*.conf | xargs -n1 basename -s .conf | grep -v current | sort -u | tr '\n' ' ')" >&2
     exit 1
 }
 
-# Copy theme to fixed path (kitty's include directive reads this)
-cp "$THEME_FILE" "$ACTIVE"
+# Concatenate base + theme → new kitty.conf
+cat "$BASE" "$THEME_FILE" > "$CONF"
 
-# Also update symlink for theme-rofi to know what's active
-ln -sfn "$NAME.conf" "$KITTY_DIR/current.conf"
+# Update symlink for theme-rofi to show current theme name
+ln -sfn "$NAME.conf" "$THEMES_DIR/current.conf"
 
 echo "$NAME" > "$MODE_FILE"
 
-# Reload running kitty (SIGUSR1 = reload config including includes)
+# Try to reload running kitty (best-effort; new windows pick up new config automatically)
 pkill -USR1 -x kitty 2>/dev/null || true
 
 notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME" 2>/dev/null || true
