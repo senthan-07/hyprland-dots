@@ -1,0 +1,81 @@
+# hyprlock.conf — improved time display (separate Hours + Minutes labels)
+# Background: blurred screenshot (privacy-friendly, fast)
+# Syntax: hyprlock v0.9.2 (general:hide_cursor is now top-level, no general block needed for most opts)
+
+general {
+    hide_cursor = true
+}
+
+background {
+    monitor =
+    path = screenshot
+    blur_passes = 3
+    blur_size = 8
+    noise = 0.0117
+    contrast = 0.8916
+    brightness = 0.8172
+    vibrancy = 0.1696
+    vibrancy_darkness = 0.0
+}
+
+input-field {
+    monitor =
+    size = 300, 50
+    outline_thickness = 3
+    dots_size = 0.33
+    dots_spacing = 0.15
+    fade_on_empty = true
+    fade_timeout = 1000
+    placeholder_text = <i>Password...</i>
+    fail_text = <i>Failure</i>
+    position = 0, -20
+    halign = center
+    valign = center
+
+    fail_color = rgba(255, 98, 77, 1.0)
+}
+
+# Day of week (small, top)
+label {
+    monitor =
+    text = cmd[update:18000000] echo "<b><big>$(date +'%A')</big></b>"
+    color = rgba(255, 255, 255, 1.0)
+    font_size = 28
+    font_family = JetBrainsMono Nerd Font
+    shadow_passes = 2
+    shadow_size = 3
+
+    position = 0, 30
+    halign = center
+    valign = center
+}
+
+# Hours (large, upper center)
+label {
+    monitor =
+    text = cmd[update:1000] echo "<b><big>$(date +'%H')</big></b>"
+    color = rgba(255, 255, 255, 1.0)
+    font_size = 110
+    font_family = JetBrainsMono Nerd Font
+    shadow_passes = 3
+    shadow_size = 4
+
+    position = 0, 220
+    halign = center
+    valign = center
+}
+
+# Minutes (large, lower center)
+label {
+    monitor =
+    text = cmd[update:1000] echo "<b><big>$(date +'%M')</big></b>"
+    color = rgba(255, 255, 255, 1.0)
+    font_size = 110
+    font_family = JetBrainsMono Nerd Font
+    shadow_passes = 3
+    shadow_size = 4
+
+    position = 0, 90
+    halign = center
+    valign = center
+}
