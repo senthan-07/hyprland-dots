@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# theme-doctor — read-only sanity checker for the theme system.
+# Verifies:
+#   - Current theme name readable
+#   - All 5 theme files exist (kitty, hyprland, waybar, rofi, swaync)
+#   - All 5 symlinks point to valid targets
+#   - Daemon status (swaync, hypridle, swww-daemon, wl-paste)
+#
+# Exit 0 if all OK, non-zero on any failure.
+# Strictly READ-ONLY: no state changes, no daemon restarts, no reloads.
+
+set -uo pipefail
+
+CONFIG_DIR="$HOME/.config"
+MODE_FILE="$CONFIG_DIR/current-theme"
+THEME_NAME="$(cat "$MODE_FILE" 2>/dev/null | tr -d '[:space:]')"
+
+# Color helpers (only if stdout is a TTY)
+if [[ -t 1 ]]; then
+    C_RED=$'\033[0;31m'
+    C_GREEN=$'\033[0;32m'
+    C_YELLOW=$'\033[0;33m'
+    C_BLUE=$'\033[0;34m'
+    C_BOLD=$'\033[1m'
+    C_RESET=$'\033[0m'
+else
+    C_RED="" C_GREEN="" C_YELLOW="" C_BLUE="" C_BOLD="" C_RESET=""
+fi
+
+PASS=0
+FAIL=0
+WARN=0
+
+print_ok()    { printf "  %s✓%s %s\n" "$C_GREEN" "$C_RESET" "$1"; PASS=$((PASS+1)); }
+print_fail()  { printf "  %s✗%s %s\n" "$C_RED"   "$C_RESET" "$1"; FAIL=$((FAIL+1)); }
+print_warn()  { printf "  %s!%s %s\n" "$C_YELLOW" "$C_RESET" "$1"; WARN=$((WARN+1)); }
+print_info()  { printf "    %s\n" "$1"; }
+section()     { printf "\n%s%s%s\n" "$C_BOLD" "$1" "$C_RESET"; }
+
+section "Theme Doctor — Theme System Sanity Check"
+
+# ---- 1. Current theme name ----
+if [[ -z "$THEME_NAME" ]]; then
+    print_fail "No current theme — $MODE_FILE missing or empty"
+    THEME_NAME="(unknown)"
+else
+    print_ok "Current theme: $THEME_NAME"
+fi
+
+# ---- 2. Theme files exist (5 components) ----
+section "Theme files (kitty, hyprland, waybar, rofi, swaync)"
+
+declare -A THEME_PATHS=(
+    [kitty]="$CONFIG_DIR/kitty/themes/$THEME_NAME.conf"
+    [hyprland]="$CONFIG_DIR/hypr/themes/$THEME_NAME.conf"
+    [waybar]="$CONFIG_DIR/waybar/themes/$THEME_NAME.css"
+    [rofi]="$CONFIG_DIR/rofi/themes/$THEME_NAME.rasi"
+    [swaync]="$CONFIG_DIR/swaync/themes/$THEME_NAME.css"
+)
+
+for component in kitty hyprland waybar rofi swaync; do
+    path="${THEME_PATHS[$component]}"
+    if [[ -f "$path" ]]; then
+        print_ok "$component: $path"
+    else
+        print_fail "$component: missing — $path"
+    fi
+done
+
+# ---- 3. Symlinks point to valid targets ----
+section "Symlink integrity (themes/current.*)"
+
+declare -A SYMLINK_PATHS=(
+    [kitty]="$CONFIG_DIR/kitty/themes/current.conf"
+    [hyprland]="$CONFIG_DIR/hypr/themes/current.conf"
+    [waybar]="$CONFIG_DIR/waybar/themes/current.css"
+    [rofi]="$CONFIG_DIR/rofi/themes/current.rasi"
+    [swaync]="$CONFIG_DIR/swaync/themes/current.css"
+)
+
+for component in kitty hyprland waybar rofi swaync; do
+    link="${SYMLINK_PATHS[$component]}"
+    if [[ -L "$link" ]]; then
+        target=$(readlink "$link")
+        # Check target exists (follow symlink)
+        if [[ -e "$link" ]]; then
+            print_ok "$component: $link → $target"
+        else
+            print_fail "$component: broken symlink — $link → $target"
+        fi
+    elif [[ -f "$link" ]]; then
+        # Not a symlink, but exists as a regular file — also valid
+        print_warn "$component: $link is a regular file (not a symlink)"
+    else
+        print_fail "$component: missing — $link"
+    fi
+done
+
+# ---- 4. Symlink drift detection ----
+section "Symlink drift detection"
+
+drift_found=0
+for component in kitty hyprland waybar rofi swaync; do
+    link="${SYMLINK_PATHS[$component]}"
+    if [[ -L "$link" ]]; then
+        target=$(readlink "$link")
+        target_name=$(basename "$target")
+        if [[ "$target_name" != "$THEME_NAME"* ]]; then
+            print_warn "$component: symlink target ($target_name) does not match current theme ($THEME_NAME)"
+            drift_found=1
+        fi
+    fi
+done
+if [[ $drift_found -eq 0 ]]; then
+    print_ok "All symlinks point to current theme"
+fi
+
+# ---- 5. Daemon status (read-only) ----
+section "Daemon status"
+
+declare -A DAEMONS=(
+    [swaync]="swaync"
+    [hypridle]="hypridle"
+    [swww-daemon]="swww-daemon"
+    [wl-paste]="wl-paste"
+    [waybar]="waybar"
+)
+
+for name in swaync hypridle swww-daemon wl-paste waybar; do
+    pid=$(pgrep -x "$name" | head -1)
+    if [[ -n "$pid" ]]; then
+        print_ok "$name: running (pid $pid)"
+    else
+        print_fail "$name: NOT running"
+    fi
+done
+
+# ---- 6. Theme-mode file ----
+section "Theme mode"
+
+mode_file="$CONFIG_DIR/theme-mode"
+if [[ -f "$mode_file" ]]; then
+    mode=$(cat "$mode_file" | tr -d '[:space:]')
+    print_ok "theme-mode: $mode"
+else
+    print_warn "theme-mode file missing — auto assumed"
+fi
+
+# ---- 7. Wallpaper cache ----
+section "Wallpaper cache"
+
+wp_cache="$HOME/.cache/current-wallpaper"
+if [[ -L "$wp_cache" ]]; then
+    target=$(readlink "$wp_cache")
+    if [[ -e "$wp_cache" ]]; then
+        print_ok "current-wallpaper → $target"
+    else
+        print_fail "current-wallpaper: broken symlink → $target"
+    fi
+elif [[ -f "$wp_cache" ]]; then
+    print_ok "current-wallpaper: regular file (not symlink)"
+else
+    print_fail "current-wallpaper: missing"
+fi
+
+# ---- Summary ----
+printf "\n"
+printf "%sSummary:%s  %d passed, %d failed, %d warnings\n" \
+    "$C_BOLD" "$C_RESET" "$PASS" "$FAIL" "$WARN"
+
+if [[ $FAIL -gt 0 ]]; then
+    printf "%sFAIL%s — see errors above\n" "$C_RED" "$C_RESET"
+    exit 1
+fi
+
+printf "%sOK%s\n" "$C_GREEN" "$C_RESET"
+exit 0
