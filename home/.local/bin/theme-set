@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# theme-set <name> — switch all 4 components atomically.
+# theme-set <name> — switch all 5 components atomically.
 #
-# Validates ALL FOUR theme files exist BEFORE any modifications.
+# Validates ALL FIVE theme files exist BEFORE any modifications.
 # Prevents partially-applied state if any component theme is missing.
 # Writes kitty.conf via temp file + atomic rename.
 # State file updated AFTER all configs + symlinks applied.
+#
+# 5 components:
+#   1. kitty  — concatenates base + theme → kitty.conf
+#   2. hyprland — theme symlink (themes/current.conf)
+#   3. waybar — theme symlink (themes/current.css)
+#   4. rofi   — theme symlink (themes/current.rasi)
+#   5. swaync — theme symlink (themes/current.css) + CSS reload
 
 set -euo pipefail
 
@@ -23,6 +30,9 @@ WAYBAR_CURRENT="$WAYBAR_THEMES_DIR/current.css"
 ROFI_THEMES_DIR="$HOME/.config/rofi/themes"
 ROFI_CURRENT="$ROFI_THEMES_DIR/current.rasi"
 
+SWAYNC_THEMES_DIR="$HOME/.config/swaync/themes"
+SWAYNC_CURRENT="$SWAYNC_THEMES_DIR/current.css"
+
 MODE_FILE="$HOME/.config/current-theme"
 
 NAME="${1:-}"
@@ -37,11 +47,12 @@ if [[ "$NAME" == "dynamic" ]]; then
     exit 1
 fi
 
-# === VALIDATE ALL FOUR BEFORE ANY CHANGE ===
+# === VALIDATE ALL FIVE BEFORE ANY CHANGE ===
 KITTY_THEME_FILE="$KITTY_THEMES_DIR/$NAME.conf"
 HYPR_THEME_FILE="$HYPR_THEMES_DIR/$NAME.conf"
 WAYBAR_THEME_FILE="$WAYBAR_THEMES_DIR/$NAME.css"
 ROFI_THEME_FILE="$ROFI_THEMES_DIR/$NAME.rasi"
+SWAYNC_THEME_FILE="$SWAYNC_THEMES_DIR/$NAME.css"
 
 [[ -f "$KITTY_BASE" ]] || { echo "theme-set: missing kitty base: $KITTY_BASE" >&2; exit 1; }
 [[ -f "$KITTY_THEME_FILE" ]] || {
@@ -64,6 +75,14 @@ ROFI_THEME_FILE="$ROFI_THEMES_DIR/$NAME.rasi"
     echo "available rofi: $(ls "$ROFI_THEMES_DIR"/*.rasi | xargs -n1 basename -s .rasi | grep -v current | sort -u | tr '\n' ' ')" >&2
     exit 1
 }
+# swaync theme is OPTIONAL — older theme sets may not have a swaync theme yet.
+# If swaync themes dir exists but the file is missing, warn but don't fail (kitty/waybar/etc still apply).
+if [[ -d "$SWAYNC_THEMES_DIR" ]]; then
+    if [[ ! -f "$SWAYNC_THEME_FILE" ]]; then
+        echo "theme-set: swaync theme not found for '$NAME' — swaync will keep its current theme" >&2
+        SWAYNC_THEME_FILE=""
+    fi
+fi
 
 # === APPLY (only after all 4 validations passed) ===
 
@@ -72,11 +91,14 @@ KITTY_TMP="$(mktemp "${KITTY_CONF}.XXXXXX")"
 cat "$KITTY_BASE" "$KITTY_THEME_FILE" > "$KITTY_TMP"
 mv "$KITTY_TMP" "$KITTY_CONF"
 
-# 2. Symlinks (all 4 components)
+# 2. Symlinks (all 5 components — swaync only if theme file exists)
 ln -sfn "$NAME.conf" "$KITTY_THEME"
 ln -sfn "$NAME.conf" "$HYPR_CURRENT"
 ln -sfn "$NAME.css"  "$WAYBAR_CURRENT"
 ln -sfn "$NAME.rasi" "$ROFI_CURRENT"
+if [[ -n "$SWAYNC_THEME_FILE" ]]; then
+    ln -sfn "$NAME.css"  "$SWAYNC_CURRENT"
+fi
 
 # 3. Save state (last — only after all above succeeded)
 echo "$NAME" > "$MODE_FILE"
@@ -92,7 +114,12 @@ nohup waybar >/dev/null 2>&1 &
 # 6. Best-effort kitty reload (new windows pick up new theme regardless)
 pkill -USR1 -x kitty 2>/dev/null || true
 
+# 7. Best-effort swaync CSS reload (live reloads style)
+if [[ -n "$SWAYNC_THEME_FILE" ]] && pgrep -x swaync >/dev/null; then
+    swaync-client --reload-css 2>/dev/null || true
+fi
+
 # Rofi: no reload needed — next launch reads the active theme.
 
-notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME (all 4 components)" 2>/dev/null || true
+notify-send -a "Theme" -t 2000 "🎨 Theme: $NAME" 2>/dev/null || true
 echo "theme: $NAME"

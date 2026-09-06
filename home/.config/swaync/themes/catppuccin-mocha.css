@@ -1,0 +1,114 @@
+/* swaync/themes/catppuccin-mocha.css — colors only (no layout) */
+
+@define-color background  #1e1e2e;
+@define-color text        #cdd6f4;
+@define-color background-alt alpha(#313244, .55);
+@define-color selected    #cba6f7;
+@define-color hover       alpha(#cba6f7, .4);
+@define-color urgent      #f38ba8;
+@define-color low         #585b70;
+@define-color normal      #89b4fa;
+@define-color critical    #f38ba8;
+
+/* ============ control center ============ */
+.blank-window { background: transparent; }
+
+.control-center {
+  background: alpha(#1e1e2e, .95);
+  border: 2px solid @selected;
+  border-radius: 14px;
+  box-shadow: 0 0 10px 0 rgba(0,0,0,.6);
+  margin: 10px;
+  padding: 10px;
+}
+
+.control-center-list { background: transparent; }
+
+/* ============ notification rows ============ */
+.notification {
+  background: alpha(#181825, .95);
+  border: 2px solid @selected;
+  border-radius: 12px;
+  margin: 8px;
+  padding: 12px;
+}
+
+.notification.low    { border-color: @low; }
+.notification.normal { border-color: @normal; }
+.notification.critical {
+  border-color: @critical;
+  border-width: 3px;
+}
+
+.notification-content { padding: 4px 0; color: @text; }
+.notification summary { color: @text; font-weight: 600; }
+.notification .app-name { color: #94e2d5; font-size: 0.9em; }
+.notification .body { color: #bac2de; font-size: 0.95em; }
+.notification .time { color: #7f849c; font-size: 0.85em; }
+.notification-action-button {
+  background: alpha(#313244, .9);
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  color: @text;
+  margin: 4px 0;
+  padding: 4px 12px;
+}
+.notification-action-button:hover {
+  background: @hover;
+  border-color: @selected;
+}
+
+/* ============ widget-title (Notifications header) ============ */
+.title { color: @text; font-size: 1.1em; font-weight: 600; margin: 6px 12px; }
+.title-button {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 6px;
+  color: @text;
+  padding: 2px 12px;
+}
+.title-button:hover { background: @hover; }
+
+/* ============ dnd ============ */
+.dnd {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 8px;
+  margin: 6px 12px;
+  padding: 6px 12px;
+  color: @text;
+}
+.dnd-button {
+  background: transparent;
+  border: 1px solid @selected;
+  border-radius: 6px;
+  color: @selected;
+  padding: 4px 12px;
+}
+.dnd-button.active { background: @selected; color: #11111b; }
+
+/* ============ buttons grid ============ */
+.buttons-grid { margin: 6px 12px; }
+.buttons-grid button {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 6px;
+  color: @text;
+  padding: 8px;
+}
+.buttons-grid button:hover {
+  background: @hover;
+  border-color: @selected;
+}
+
+/* ============ mpris (music) ============ */
+.mpris {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 12px;
+  margin: 4px 12px;
+  padding: 8px;
+  color: @text;
+}
+
+.empty { color: #7f849c; margin: 12px; }

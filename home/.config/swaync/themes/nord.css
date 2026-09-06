@@ -1,0 +1,102 @@
+/* swaync/themes/nord.css — colors only */
+
+@define-color background  #2e3440;
+@define-color text        #d8dee9;
+@define-color background-alt alpha(#3b4252, .55);
+@define-color selected    #88c0d0;
+@define-color hover       alpha(#88c0d0, .4);
+@define-color urgent      #bf616a;
+@define-color low         #4c566a;
+@define-color normal      #88c0d0;
+@define-color critical    #bf616a;
+
+.blank-window { background: transparent; }
+
+.control-center {
+  background: alpha(#2e3440, .95);
+  border: 2px solid @selected;
+  border-radius: 14px;
+  box-shadow: 0 0 10px 0 rgba(0,0,0,.6);
+  margin: 10px;
+  padding: 10px;
+}
+
+.control-center-list { background: transparent; }
+
+.notification {
+  background: alpha(#3b4252, .95);
+  border: 2px solid @selected;
+  border-radius: 12px;
+  margin: 8px;
+  padding: 12px;
+}
+
+.notification.low    { border-color: @low; }
+.notification.normal { border-color: @normal; }
+.notification.critical {
+  border-color: @critical;
+  border-width: 3px;
+}
+
+.notification-content { padding: 4px 0; color: @text; }
+.notification summary { color: @text; font-weight: 600; }
+.notification .app-name { color: #a3be8c; font-size: 0.9em; }
+.notification .body { color: #e5e9f0; font-size: 0.95em; }
+.notification .time { color: #7b88a1; font-size: 0.85em; }
+.notification-action-button {
+  background: alpha(#434c5e, .9);
+  border: 1px solid #4c566a;
+  border-radius: 6px;
+  color: @text;
+  margin: 4px 0;
+  padding: 4px 12px;
+}
+.notification-action-button:hover { background: @hover; border-color: @selected; }
+
+.title { color: @text; font-size: 1.1em; font-weight: 600; margin: 6px 12px; }
+.title-button {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 6px;
+  color: @text;
+  padding: 2px 12px;
+}
+.title-button:hover { background: @hover; }
+
+.dnd {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 8px;
+  margin: 6px 12px;
+  padding: 6px 12px;
+  color: @text;
+}
+.dnd-button {
+  background: transparent;
+  border: 1px solid @selected;
+  border-radius: 6px;
+  color: @selected;
+  padding: 4px 12px;
+}
+.dnd-button.active { background: @selected; color: #2e3440; }
+
+.buttons-grid { margin: 6px 12px; }
+.buttons-grid button {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 6px;
+  color: @text;
+  padding: 8px;
+}
+.buttons-grid button:hover { background: @hover; border-color: @selected; }
+
+.mpris {
+  background: @background-alt;
+  border: 1px solid @selected;
+  border-radius: 12px;
+  margin: 4px 12px;
+  padding: 8px;
+  color: @text;
+}
+
+.empty { color: #7b88a1; margin: 12px; }
