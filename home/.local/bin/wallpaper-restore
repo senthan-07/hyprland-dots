@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# wallpaper-restore — restore the last-set wallpaper at Hyprland startup.
+# Waits for swww-daemon socket to be ready (up to 5s).
+# Reads path from ~/.cache/last-wallpaper (symlink, set by wallpaper-set).
+# Falls back to ~/Pictures/wallpapers/megumi.png if no last-wallpaper exists.
+#
+# This script does NOT re-run theme-match. The user's theme state at
+# shutdown is preserved across reboot by leaving current-theme untouched.
+
+CACHE_FILE="$HOME/.cache/last-wallpaper"
+FALLBACK="$HOME/Pictures/wallpapers/megumi.png"
+
+# Wait for swww-daemon to be ready (max 5s) — poll socket file, not swww query
+# (swww query has ~600ms internal timeout per call, making 5s unrealistic).
+SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/wayland-1-swww-daemon..sock"
+READY=false
+for _ in {1..50}; do
+    if [[ -S "$SOCK" ]]; then
+        READY=true
+        break
+    fi
+    sleep 0.1
+done
+
+if [[ "$READY" != true ]]; then
+    echo "wallpaper-restore: swww-daemon not ready after 5 seconds" >&2
+    exit 1
+fi
+
+# Resolve target image
+img=""
+if [[ -L "$CACHE_FILE" ]]; then
+    img="$(readlink -f "$CACHE_FILE")"
+    [[ -f "$img" ]] || img=""
+fi
+[[ -n "$img" ]] || img="$FALLBACK"
+[[ -f "$img" ]] || { echo "wallpaper-restore: no valid image ($CACHE_FILE, $FALLBACK)" >&2; exit 1; }
+
+# Apply with smooth fade-in transition
+swww img "$img" \
+    --transition-type fade \
+    --transition-step 90 \
+    --transition-fps 60 \
+    --transition-duration 1
