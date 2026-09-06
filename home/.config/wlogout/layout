@@ -28,3 +28,9 @@
     "text" : "Lock",
     "keybind" : "l"
 }
+{
+    "label" : "sleep",
+    "action" : "systemctl suspend",
+    "text" : "Sleep",
+    "keybind" : "z"
+}

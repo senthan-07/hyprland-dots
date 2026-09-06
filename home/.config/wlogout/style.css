@@ -1,12 +1,18 @@
-/* wlogout/style.css — catppuccin-mocha baseline
- * Adapted from HyprNova's nova.css but with hand-mapped colors (no pywal).
+/* wlogout/style.css — generated wrapper
+ * Layout/structure only. Colors live in themes/<theme>.css.
+ * theme-set writes themes/current.css as a symlink to the active theme.
  */
+
+@import "themes/current.css";
+
+/* Layout/structural styles — apply to all themes via the @import above.
+ * Per-theme files only define color variables, no layout. */
 
 window {
     font-family: "JetBrainsMono Nerd Font Propo", "Google Sans Flex", sans-serif;
     font-size: 16pt;
-    color: #cdd6f4;
-    background-color: alpha(#1e1e2e, 0.85);
+    color: @text;
+    background-color: alpha(@background, 0.85);
 }
 
 button {
@@ -18,7 +24,7 @@ button {
     box-shadow: 0 0 10px 2px transparent;
     border-radius: 36px;
     margin: 10px;
-    color: #cdd6f4;
+    color: @text;
 }
 
 button:focus {
@@ -29,7 +35,7 @@ button:focus {
 button:hover {
     background-size: 50%;
     box-shadow: 0 0 10px 3px rgba(0,0,0,.4);
-    background-color: alpha(#cba6f7, 0.4);
+    background-color: alpha(@selected, 0.4);
     color: transparent;
     transition: all 0.3s cubic-bezier(.55, 0.0, .28, 1.682), box-shadow 0.5s ease-in;
 }
@@ -67,4 +73,11 @@ button:hover {
 }
 #hibernate:hover {
     background-image: image(url("./icons/hibernate-hover.png"));
+}
+
+#sleep {
+    background-image: image(url("./icons/sleep.png"));
+}
+#sleep:hover {
+    background-image: image(url("./icons/sleep-hover.png"));
 }
