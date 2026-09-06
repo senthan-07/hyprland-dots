@@ -30,12 +30,19 @@ done
 current=$(basename "$(readlink "$HOME/.cache/current-wallpaper" 2>/dev/null)" 2>/dev/null)
 [[ -z "$current" ]] && current="?"
 
-# Run rofi picker
+# Toggle behavior: close rofi if already open, otherwise open it
+if pgrep -x rofi >/dev/null 2>&1; then
+    pkill -x rofi
+    exit 0
+fi
+
+# Run rofi picker (theme-aware via style-dmenu.rasi)
 # Disable pipefail temporarily — rofi returns non-zero on Esc/cancel
 set +o pipefail
 selected=$(printf '%s\n' "$list" | rofi -dmenu -i \
     -p " 🖼  Wallpaper " \
-    -mesg "current: ${current} | Esc to cancel")
+    -mesg "current: ${current} | Esc to cancel" \
+    -theme ~/.config/rofi/themes/style-dmenu.rasi)
 set -o pipefail
 
 [[ -z "$selected" ]] && exit 0

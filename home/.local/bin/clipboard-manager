@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # clipboard-manager — show cliphist history via rofi, restore selection to clipboard.
 # Bound to Super+Alt+V.
+#
+# Toggle: if rofi is already open, second keypress closes it (pkill rofi).
+# Theme: uses style-dmenu.rasi which follows the active Rofi theme automatically.
 
 set -euo pipefail
 
@@ -17,10 +20,17 @@ if [[ -z "$list" ]]; then
     exit 0
 fi
 
-# Rofi picker
+# Toggle behavior: close rofi if already open, otherwise open it
+if pgrep -x rofi >/dev/null 2>&1; then
+    pkill -x rofi
+    exit 0
+fi
+
+# Rofi picker (theme-aware via style-dmenu.rasi)
 selected="$(printf '%s\n' "$list" | rofi -dmenu -i \
     -p ' 󰨸  Clipboard ' \
-    -mesg 'type to filter | Enter to copy | Esc to cancel')"
+    -mesg 'type to filter | Enter to copy | Esc to cancel' \
+    -theme ~/.config/rofi/themes/style-dmenu.rasi)"
 
 [[ -z "$selected" ]] && exit 0
 

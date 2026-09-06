@@ -22,10 +22,17 @@ done
 current=$(basename "$(readlink "$KITTY_DIR/current.conf" 2>/dev/null)" .conf 2>/dev/null)
 [ -z "$current" ] && current="?"
 
-# Open rofi picker
+# Toggle behavior: close rofi if already open, otherwise open it
+if pgrep -x rofi >/dev/null 2>&1; then
+    pkill -x rofi
+    exit 0
+fi
+
+# Open rofi picker (theme-aware via style-dmenu.rasi)
 selected=$(printf '%s\n' "$themes" | rofi -dmenu -i \
     -p " 🎨 Theme " \
-    -mesg "current: $current | Esc to cancel")
+    -mesg "current: $current | Esc to cancel" \
+    -theme ~/.config/rofi/themes/style-dmenu.rasi)
 
 # If user selected something, switch
 if [ -n "$selected" ]; then
