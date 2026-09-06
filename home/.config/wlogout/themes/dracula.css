@@ -1,0 +1,5 @@
+/* wlogout/themes/dracula.css — colors only */
+
+@define-color background  #282a36;
+@define-color text        #f8f8f2;
+@define-color selected    #bd93f9;

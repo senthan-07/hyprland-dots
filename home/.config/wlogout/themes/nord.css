@@ -1,0 +1,5 @@
+/* wlogout/themes/nord.css — colors only */
+
+@define-color background  #2e3440;
+@define-color text        #d8dee9;
+@define-color selected    #88c0d0;

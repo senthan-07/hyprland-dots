@@ -1,0 +1,5 @@
+/* wlogout/themes/tokyo-night.css — colors only */
+
+@define-color background  #1a1b26;
+@define-color text        #c0caf5;
+@define-color selected    #7aa2f7;

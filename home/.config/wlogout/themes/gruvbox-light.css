@@ -1,0 +1,5 @@
+/* wlogout/themes/gruvbox-light.css — colors only */
+
+@define-color background  #fbf1c7;
+@define-color text        #3c3836;
+@define-color selected    #076678;

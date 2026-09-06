@@ -32,18 +32,27 @@ install_packages() {
     distro=$(detect_distro)
     log "Detected distro: $distro"
 
-    # Common package list across distros. Tool names vary slightly.
+    # Package list per distro. Tool names vary slightly across distros.
+    # Common set: hyprland + ecosystem (swww, hypridle, swaync, waybar, rofi, kitty),
+    # capture utilities (grim, slurp, swappy, wl-clipboard), media (playerctl, wireplumber),
+    # notification (swaync), clipboard (cliphist), brightness (brightnessctl, ddcutil),
+    # nautilus (file manager).
     local pkgs=()
     case "$distro" in
         ubuntu|debian|pop)
             pkgs=(
-                hyprland hyprpaper hyprlock hyprpolkitagent
+                hyprland hyprlock hyprpolkitagent hypridle
                 xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
-                waybar mako-notifier kitty
-                grim slurp wl-clipboard
+                swaync waybar kitty
+                grim slurp swappy wl-clipboard
+                playerctl wireplumber
                 brightnessctl ddcutil
-                rofi playerctl wireplumber
-                nautilus
+                rofi cliphist
+                sway-backgrounds nautilus
+                # swww installed via cargo (not in apt for Ubuntu 26); install with:
+                #   cargo install swww --locked
+                # or use the github release binary:
+                #   https://github.com/Horus645/swww/releases
             )
             command -v sudo >/dev/null && SUDO=sudo || SUDO=
             $SUDO apt update
@@ -52,13 +61,16 @@ install_packages() {
 
         fedora)
             pkgs=(
-                hyprland hyprpaper hyprlock hyprpolkitagent
+                hyprland hyprlock hyprpolkitagent hypridle
                 xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
-                waybar mako kitty
-                grim slurp wl-clipboard
+                swaync waybar kitty
+                grim slurp swappy wl-clipboard
+                playerctl wireplumber
                 brightnessctl ddcutil
-                rofi playerctl wireplumber
-                nautilus
+                rofi cliphist
+                sway-backgrounds nautilus
+                # swww may need cargo install on Fedora:
+                #   cargo install swww --locked
             )
             command -v sudo >/dev/null && SUDO=sudo || SUDO=
             $SUDO dnf install -y "${pkgs[@]}"
@@ -66,13 +78,16 @@ install_packages() {
 
         arch|manjaro|endeavouros)
             pkgs=(
-                hyprland hyprpaper hyprlock hyprpolkitagent
+                hyprland hyprlock hyprpolkitagent hypridle
                 xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
-                waybar mako kitty
-                grim slurp wl-clipboard
+                swaync waybar kitty
+                grim slurp swappy wl-clipboard
+                playerctl wireplumber
                 brightnessctl ddcutil
-                rofi playerctl wireplumber
-                nautilus
+                rofi cliphist
+                sway-backgrounds nautilus
+                # swww: yay -S swww
+                # or: cargo install swww --locked
             )
             command -v sudo >/dev/null && SUDO=sudo || SUDO=
             $SUDO pacman -S --needed --noconfirm "${pkgs[@]}"
@@ -80,27 +95,30 @@ install_packages() {
 
         opensuse*)
             pkgs=(
-                hyprland hyprpaper hyprlock hyprpolkitagent
+                hyprland hyprlock hyprpolkitagent hypridle
                 xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
-                waybar mako kitty
-                grim slurp wl-clipboard
+                swaync waybar kitty
+                grim slurp swappy wl-clipboard
+                playerctl wireplumber
                 brightnessctl ddcutil
-                rofi playerctl wireplumber
+                rofi cliphist
                 nautilus
+                # swww: cargo install swww --locked
             )
             command -v sudo >/dev/null && SUDO=sudo || SUDO=
             $SUDO zypper install -y "${pkgs[@]}"
             ;;
 
         nixos)
-            warn "NixOS detected — add hyprland, hyprpaper, etc. to configuration.nix instead."
+            warn "NixOS detected — add packages to configuration.nix instead."
             warn "Then run: ./install.sh link   to copy dotfiles only."
             ;;
 
         *)
             warn "Unknown distro '$distro'."
-            warn "Install equivalents of: hyprland, hyprpaper, hyprlock, waybar, mako,"
-            warn "kitty, grim, slurp, wl-clipboard, brightnessctl, ddcutil, rofi."
+            warn "Install equivalents of: hyprland, hyprlock, hypridle, swaync, waybar,"
+            warn "kitty, grim, slurp, swappy, wl-clipboard, playerctl, cliphist,"
+            warn "brightnessctl, ddcutil, rofi."
             ;;
     esac
 
@@ -117,7 +135,42 @@ install_packages() {
         fi
     done
 
-    # hyprland-guiutils — not in apt on Ubuntu, so build from source.
+    # swww — wallpaper daemon. NOT in apt on Ubuntu 26; build from source.
+    # Provides: swww, swww-daemon
+    if ! command -v swww >/dev/null 2>&1; then
+        log "Building swww from source (not in apt for Ubuntu)..."
+        local builddeps=(
+            git cargo
+            libx11-dev libwayland-dev libxkbcommon-dev
+            libseat-dev scdoc
+        )
+        case "$distro" in
+            ubuntu|debian|pop)
+                command -v sudo >/dev/null && SUDO=sudo || SUDO=
+                $SUDO apt install -y "${builddeps[@]}" || warn "Failed to install builddeps"
+                ;;
+            fedora)
+                command -v sudo >/dev/null && SUDO=sudo || SUDO=
+                $SUDO dnf install -y git cargo rust \
+                    libX11-devel wayland-devel libxkbcommon-devel \
+                    libseat-devel scdoc \
+                    || warn "Failed to install builddeps"
+                ;;
+            arch|manjaro|endeavouros)
+                command -v sudo >/dev/null && SUDO=sudo || SUDO=
+                $SUDO pacman -S --needed --noconfirm git cargo base-devel \
+                    libx11 wayland libxkbcommon libseat scdoc \
+                    || warn "Failed to install builddeps"
+                ;;
+        esac
+
+        if command -v cargo >/dev/null 2>&1; then
+            log "Installing swww via cargo..."
+            $SUDO cargo install swww --locked || warn "swww cargo install failed — install manually: https://github.com/Horus645/swww"
+        fi
+    fi
+
+    # hyprland-guiutils — not in apt on Ubuntu, build from source.
     # Provides: hyprland-welcome, hyprland-dialog, hyprland-run, hyprland-update-screen
     if ! command -v hyprland-welcome >/dev/null 2>&1; then
         log "Building hyprland-guiutils from source (not in apt)..."
@@ -190,28 +243,64 @@ link_dotfiles() {
     done
 
     # Other apps — symlink files inside each app's config dir.
-    for app in kitty waybar mako; do
+    # (Themes/current.css/rasi are symlinks — symlinking them again is fine.)
+    for app in kitty waybar swaync wlogout; do
         mkdir -p "$HOME_DIR/.config/$app"
         for f in "$REPO_ROOT"/home/.config/$app/*; do
             [[ -f "$f" ]] || continue   # ← only real files
             link_file "$f" "$HOME_DIR/.config/$app/$(basename "$f")"
         done
+        # Also link files inside app subdirs (themes/, icons/)
+        for sub in themes icons; do
+            [[ -d "$REPO_ROOT/home/.config/$app/$sub" ]] || continue
+            mkdir -p "$HOME_DIR/.config/$app/$sub"
+            for f in "$REPO_ROOT"/home/.config/$app/$sub/*; do
+                [[ -f "$f" ]] || continue
+                link_file "$f" "$HOME_DIR/.config/$app/$sub/$(basename "$f")"
+            done
+        done
     done
 
-    # Brightness script — symlink to ~/.local/bin AND /usr/local/bin
+    # Rofi — special: has shared/colors.rasi and shared/fonts.rasi wrapper
+    mkdir -p "$HOME_DIR/.config/rofi/shared"
+    for f in "$REPO_ROOT"/home/.config/rofi/shared/*; do
+        [[ -f "$f" ]] || continue
+        link_file "$f" "$HOME_DIR/.config/rofi/shared/$(basename "$f")"
+    done
+
+    # Fish shell
+    mkdir -p "$HOME_DIR/.config/fish/functions"
+    for f in "$REPO_ROOT"/home/.config/fish/*; do
+        [[ -f "$f" ]] || continue
+        link_file "$f" "$HOME_DIR/.config/fish/$(basename "$f")"
+    done
+    for f in "$REPO_ROOT"/home/.config/fish/functions/*; do
+        [[ -f "$f" ]] || continue
+        link_file "$f" "$HOME_DIR/.config/fish/functions/$(basename "$f")"
+    done
+
+    # Scripts — symlink to ~/.local/bin AND /usr/local/bin
     # (Hyprland's exec PATH doesn't include ~/.local/bin, so we need
     #  either /usr/local/bin symlink or absolute path in keybinds.)
     mkdir -p "$HOME_DIR/.local/bin"
-    link_file "$REPO_ROOT/home/.local/bin/brightness" "$HOME_DIR/.local/bin/brightness"
-    chmod +x "$HOME_DIR/.local/bin/brightness"
+    for f in "$REPO_ROOT"/home/.local/bin/*; do
+        [[ -f "$f" ]] || continue
+        link_file "$f" "$HOME_DIR/.local/bin/$(basename "$f")"
+        chmod +x "$HOME_DIR/.local/bin/$(basename "$f")"
+    done
 
     if [[ -w /usr/local/bin ]]; then
-        ln -sfn "$HOME_DIR/.local/bin/brightness" /usr/local/bin/brightness
-        log "Linked /usr/local/bin/brightness (system PATH)"
+        for f in "$REPO_ROOT"/home/.local/bin/*; do
+            [[ -f "$f" ]] || continue
+            ln -sfn "$HOME_DIR/.local/bin/$(basename "$f")" /usr/local/bin/$(basename "$f")
+        done
+        log "Linked all scripts to /usr/local/bin (system PATH)"
     elif command -v sudo >/dev/null; then
-        sudo ln -sfn "$HOME_DIR/.local/bin/brightness" /usr/local/bin/brightness \
-            && log "Linked /usr/local/bin/brightness (system PATH)" \
-            || warn "Could not symlink to /usr/local/bin — brightness keys will use ~/.local/bin"
+        for f in "$REPO_ROOT"/home/.local/bin/*; do
+            [[ -f "$f" ]] || continue
+            sudo ln -sfn "$HOME_DIR/.local/bin/$(basename "$f")" /usr/local/bin/$(basename "$f")
+        done
+        log "Linked all scripts to /usr/local/bin (system PATH)"
     fi
 
     # Wallpaper — placeholder note
@@ -235,3 +324,4 @@ esac
 log "Done."
 log "Reload Hyprland with: hyprctl reload"
 log "If brightness keys don't work, log out & back in for the 'video' group change to take effect."
+log "Run 'theme-doctor' to verify the theme system is healthy."

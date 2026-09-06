@@ -4,19 +4,35 @@ This document explains how the configuration is organized, which files are safe 
 
 ## Architecture Overview
 
-The rice uses a **base + theme** split across **5 themed components**:
+The rice uses a **base + theme** split across **6 themed components**:
 
 | Component | Settings file (stable) | Theme file | Switched via |
 |---|---|---|---|
 | **kitty** | `~/.config/kitty/kitty.conf.base` | `~/.config/kitty/themes/<name>.conf` | symlink + concatenation |
 | **hyprland** | `~/.config/hypr/modules/*.conf` + `themes/common.conf` | `~/.config/hypr/themes/<name>.conf` | symlink |
 | **waybar** | `~/.config/waybar/style.css` + `config.jsonc` | `~/.config/waybar/themes/<name>.css` | symlink + `@import` |
-| **rofi** | `~/.config/rofi/style-1.rasi` + `shared/colors.rasi` | `~/.config/rofi/themes/<name>.rasi` | symlink + `@import` |
+| **rofi** | `~/.config/rofi/style-1.rasi` + `style-dmenu.rasi` + `shared/colors.rasi` | `~/.config/rofi/themes/<name>.rasi` | symlink + `@import` |
 | **swaync** | `~/.config/swaync/style.css` (wrapper) | `~/.config/swaync/themes/<name>.css` | symlink + `@import` |
+| **wlogout** | `~/.config/wlogout/style.css` (wrapper) + `layout` + `icons/` | `~/.config/wlogout/themes/<name>.css` | symlink + `@import` |
 
 Wallpaper (`wallhaven`, `megumi.png`, `your-name-*.jpg`, etc.) is **independent** of theme. Theme switching changes colors only; wallpaper follows its own state in `~/.cache/current-wallpaper`.
 
 The 6 themes are: `catppuccin-mocha`, `gruvbox-dark`, `gruvbox-light`, `nord`, `dracula`, `tokyo-night`.
+
+### 6-component theme flow (visual)
+
+```
+theme-set <name>
+   │
+   ├── kitty     : concat base + theme → kitty.conf
+   ├── hyprland  : theme symlink → themes/current.conf
+   ├── waybar    : theme symlink → themes/current.css  (@imported by style.css)
+   ├── rofi      : theme symlink → themes/current.rasi (@imported by shared/colors.rasi)
+   ├── swaync    : theme symlink → themes/current.css  (@imported by style.css)
+   └── wlogout   : theme symlink → themes/current.css  (@imported by style.css)
+```
+
+Rofi pickers (`theme-rofi`, `clipboard-manager`, `wallpaper-picker`) and wlogout all follow automatically because they all read from `themes/current.*` symlinks.
 
 ## Files Safe to Edit
 
@@ -29,27 +45,33 @@ These are configuration inputs you may freely modify:
 | `~/.config/hypr/modules/*.conf` | Hyprland module settings (monitors, autostart, keybinds, animations, etc.) |
 | `~/.config/hypr/themes/common.conf` | Universal hyprland settings (gaps, border_size) — applies to all themes |
 | `~/.config/hypr/themes/<name>.conf` | Theme-specific hyprland border colors |
+| `~/.config/hypr/hyprlock.conf` | Hyprlock configuration (cinematic layout, wallpaper bg + subtle blur) |
+| `~/.config/hypr/hypridle.conf` | Hypridle idle listeners (300s → hyprlock, 900s → suspend) |
+| `~/.config/hypr/hyprpaper.conf` (if present) | Hyprpaper wallpaper daemon |
 | `~/.config/waybar/style.css` | Waybar layout, classes, IDs (above the `@import`) |
+| `~/.config/waybar/config.jsonc` | Waybar module configuration |
 | `~/.config/waybar/themes/<name>.css` | Theme colors (`@define-color` lines) |
-| `~/.config/rofi/style-1.rasi` | Rofi layout |
+| `~/.config/rofi/style-1.rasi` | Rofi app-launcher layout (Super+D) |
+| `~/.config/rofi/style-dmenu.rasi` | Rofi picker layout (clipboard, theme, wallpaper) |
 | `~/.config/rofi/shared/colors.rasi` | Rofi color import wrapper |
+| `~/.config/rofi/shared/fonts.rasi` | Rofi font wrapper |
 | `~/.config/rofi/themes/<name>.rasi` | Theme color variables |
 | `~/.config/swaync/style.css` | SwayNC layout (wrapper with `@import`) |
 | `~/.config/swaync/themes/<name>.css` | Theme color definitions |
 | `~/.config/swaync/config.json` | SwayNC behavior (timeouts, widgets, position) |
-| `~/.config/wlogout/layout` | Wlogout button layout |
-| `~/.config/wlogout/style.css` | Wlogout button styling |
-| `~/.config/hypr/hyprlock.conf` | Hyprlock configuration |
-| `~/.config/hypr/hypridle.conf` | Hypridle idle listeners |
+| `~/.config/wlogout/layout` | Wlogout button layout (6 buttons) |
+| `~/.config/wlogout/style.css` | Wlogout button styling (wrapper with `@import`) |
+| `~/.config/wlogout/themes/<name>.css` | Theme color definitions (background, text, selected) |
+| `~/.config/wlogout/icons/` | 12 PNG icons (normal + hover per button) — do NOT add new icons here unless adding a button |
 | `~/.config/hypr/modules/keybinds.conf` | All Hyprland keybinds |
 | `~/.config/hypr/modules/autostart.conf` | Daemons to launch at startup |
 | `~/.config/fish/config.fish` | Fish shell config |
 | `~/.config/fish/functions/fish_prompt.fish` | Fish prompt structure (uses named ANSI colors — theme-aware) |
-| `~/.local/bin/*` | Custom scripts (theme-set, wallpaper-*, etc.) |
+| `~/.local/bin/*` | Custom scripts (theme-set, wallpaper-*, screenshot, media_control, theme-doctor, etc.) |
 
 ## Files That Must NEVER Be Edited Directly
 
-These files are **generated or symlink-managed**. Edits will be silently overwritten on next theme change or theme-set invocation.
+These files are **generated or symlink-managed**. Edits will be silently overwritten on next theme change or `theme-set` invocation.
 
 | Path | Reason |
 |---|---|
@@ -58,47 +80,139 @@ These files are **generated or symlink-managed**. Edits will be silently overwri
 | `~/.config/hypr/themes/current.conf` | Symlink managed by `theme-set`. |
 | `~/.config/waybar/themes/current.css` | Symlink managed by `theme-set`. |
 | `~/.config/rofi/themes/current.rasi` | Symlink managed by `theme-set`. |
+| `~/.config/rofi/shared/colors.rasi` | Wrapper that `@import`s `themes/current.rasi`. |
+| `~/.config/rofi/shared/fonts.rasi` | Font wrapper used by both style-1 and style-dmenu. |
 | `~/.config/swaync/themes/current.css` | Symlink managed by `theme-set`. |
+| `~/.config/wlogout/themes/current.css` | Symlink managed by `theme-set`. |
 | `~/.config/current-theme` | State file (single line: theme name). Written by `theme-set`. |
 | `~/.config/theme-mode` | State file (`auto` or `manual`). Written by `theme-mode-set`. |
 | `~/.cache/current-wallpaper` | Symlink managed by `wallpaper-set`. |
 | `~/.cache/last-wallpaper` | Symlink managed by `wallpaper-set` (autostart boot restore). |
-| `~/.cache/wal/*` | **DO NOT INSTALL pywal.** Matugen is archived (`.local/bin/.archived/matugen*`). Our theme system doesn't depend on either. |
+
+**Theme-aware wrappers (modify the @import, not the wrapper internals):**
+- `~/.config/swaync/style.css` — wrapper `@import "themes/current.css"` + layout. Adding CSS is fine; refactoring the wrapper is not.
+- `~/.config/wlogout/style.css` — wrapper `@import "themes/current.css"` + layout/structure. Same rule.
+- `~/.config/rofi/style-dmenu.rasi` — wrapper `@import "shared/colors.rasi"`. Same rule.
+
+**Do NOT install or re-enable pywal/matugen** — they would create `~/.cache/wal/` files that would conflict with our theme system. The repo's `install.sh` does not install them. Matugen is archived in `~/.local/bin/.archived/` for reference only.
 
 ## Theme-Set Safety Guarantees
 
-`~/.local/bin/theme-set <name>` performs **5-component atomic updates**:
+`~/.local/bin/theme-set <name>` performs **6-component atomic updates**:
 
-1. **Validates** that all 5 theme files (`kitty`, `hyprland`, `waybar`, `rofi`, `swaync`) exist BEFORE any modification. If any is missing, NO changes are made and an error is printed listing available themes for that component.
+1. **Validates** that all 6 theme files (`kitty`, `hyprland`, `waybar`, `rofi`, `swaync`, `wlogout`) exist BEFORE any modification. If any is missing, NO changes are made and an error is printed listing available themes for that component.
 2. **Writes** `kitty.conf` via temp file + atomic rename (`mv`).
-3. **Updates** all 5 symlinks in batch.
+3. **Updates** all 6 symlinks in batch.
 4. **Saves** state (`~/.config/current-theme`) ONLY after all symlinks succeeded.
-5. **Reloads**: `hyprctl reload` (errors not suppressed), `pkill -x waybar && nohup waybar &` (kill+restart — required for this waybar build), `pkill -USR1 -x kitty` (best-effort, new windows pick up colors), `swaync-client --reload-css` (best-effort).
+5. **Reloads**: `hyprctl reload` (errors not suppressed), `pkill -x waybar && nohup waybar &` (kill+restart — required for this waybar build), `pkill -USR1 -x kitty` (best-effort, new windows pick up colors), `swaync-client --reload-css` (live reload).
+
+**OPTIONAL component pattern**: `swaync` and `wlogout` theme files are optional. If a theme file is missing for one component, `theme-set` still applies the other 5 — it just warns and skips the missing one. This is intentional and prevents partial-application failures.
 
 **If `theme-set` is interrupted mid-run** (e.g., crash), the state file may be inconsistent. Recovery: run `theme-set <current-name>` again to restore consistency. The current name is shown by `theme-doctor` or `cat ~/.config/current-theme`.
 
-## Adding a New Theme
+## Six-Component Theme Architecture
 
-1. Find/reference colors for each component
-2. Write the 5 theme files with matching basename:
-   - `~/.config/kitty/themes/<name>.conf`
-   - `~/.config/hypr/themes/<name>.conf`
-   - `~/.config/waybar/themes/<name>.css`
-   - `~/.config/rofi/themes/<name>.rasi`
-   - `~/.config/swaync/themes/<name>.css`
-3. `theme-set <name>` validates all 5 exist before any change
-4. Add theme to `theme-rofi` picker (auto-discovers from kitty/themes)
+Each themed component follows the **same pattern**:
+- A **settings file** that holds layout, behavior, or non-color config.
+- A **theme file** containing only color definitions (no layout).
+- A **wrapper** that combines settings with the active theme.
+- A **symlink** (`themes/current.<ext>`) pointing at the active theme.
+
+### How each component applies its theme
+
+| Component | Method |
+|---|---|
+| **kitty** | `theme-set` concatenates `kitty.conf.base` + `themes/<name>.conf` → `kitty.conf` |
+| **hyprland** | `theme-set` updates symlink `themes/current.conf` → hyprland sources `themes/current.conf` |
+| **waybar** | `theme-set` updates symlink `themes/current.css`; `style.css` `@import`s it |
+| **rofi** | `theme-set` updates symlink `themes/current.rasi`; `shared/colors.rasi` `@import`s it (referenced by both `style-1.rasi` and `style-dmenu.rasi`) |
+| **swaync** | `theme-set` updates symlink `themes/current.css`; `style.css` `@import`s it |
+| **wlogout** | `theme-set` updates symlink `themes/current.css`; `style.css` `@import`s it |
+
+The `@import` chain follows the symlink, so updating the symlink target updates all dependent files at once.
+
+## Rofi: style-1.rasi vs style-dmenu.rasi
+
+Two Rofi themes exist for different purposes:
+
+| Theme | Used by | Layout |
+|---|---|---|
+| `style-1.rasi` | App launcher (`launcher.sh`, Super+D) | Full layout with icons, listview, inputbar — heavier, more elements |
+| `style-dmenu.rasi` | Theme picker (`theme-rofi`), clipboard manager (`clipboard-manager`), wallpaper picker (`wallpaper-picker`) | Compact dmenu-mode layout without icons — optimized for short lists |
+
+Both themes `@import` `shared/colors.rasi`, which `@import`s `themes/current.rasi`. So both follow the active theme automatically — but have different layouts suited to their purpose.
+
+## Rofi Picker Toggle Behavior
+
+Three Rofi pickers (`theme-rofi`, `clipboard-manager`, `wallpaper-picker`) implement the same toggle pattern:
+
+```bash
+# Toggle: close rofi if already open, otherwise open it
+if pgrep -x rofi >/dev/null 2>&1; then
+    pkill -x rofi
+    exit 0
+fi
+# ... open rofi normally
+```
+
+This matches the `Super + D` launcher pattern (`pkill rofi || bash ~/.config/rofi/launcher.sh` in `$menu`). Pressing the keybind twice toggles the picker on/off.
 
 ## Wallpaper System (Independent)
 
 - `~/.local/bin/wallpaper-picker` — rofi picker, calls `wallpaper-set`
 - `~/.local/bin/wallpaper-set <path>` — sets wallpaper via swww, optionally triggers theme-match
-- `~/.local/bin/wallpaper-restore` — restores last wallpaper at boot (5-sec daemon-ready poll)
+- `~/.local/bin/wallpaper-restore` — restores last wallpaper at boot (5s daemon-ready poll)
 - `~/.local/bin/theme-match` — Python PIL wallpaper analyzer (brightness/hue/saturation)
 - `~/.local/bin/theme-mode-set auto|manual` — toggle auto-matching
 
 Auto mode: wallpaper change → theme-match → theme-set if confident.
 Manual mode: wallpaper change only, theme stays.
+
+## UX Scripts
+
+- `~/.local/bin/screenshot.sh` — variants:
+  - `--now` : full screen
+  - `--area` : slurp region (no decoration)
+  - `--in5` : 5-second countdown then full screen
+  - `--win` : currently focused window
+  - `--active` : same as `--win` but class-name in filename
+  - `--swappy` : area screenshot → opens in swappy editor
+  - All save to `~/Pictures/Screenshots/` and copy to clipboard.
+- `~/.local/bin/media_control.sh` — playerctl wrapper:
+  - `--pause` : toggle play/pause
+  - `--nxt` : next track
+  - `--prv` : previous track
+  - `--stop` : stop playback
+- `~/.local/bin/theme-doctor` — read-only sanity checker for the theme system. Reports current theme, all 5+1 themed files, symlink integrity, daemon status.
+
+## Wlogout Architecture
+
+- `~/.config/wlogout/layout` — JSON button definitions (6 buttons: shutdown, reboot, logout, lock, hibernate, sleep).
+- `~/.config/wlogout/icons/` — 12 PNG icons (normal + hover per button). Do NOT modify unless adding a button.
+- `~/.config/wlogout/style.css` — wrapper `@import "themes/current.css"` + layout. Adding `#button` selectors for new buttons is fine.
+- `~/.config/wlogout/themes/current.css` → symlink (managed by `theme-set`).
+- `~/.config/wlogout/themes/<name>.css` — 6 theme files, colors only (`background`, `text`, `selected`).
+
+### Wlogout Sleep button (6th button, keybind `z`)
+- Action: `systemctl suspend`
+- Layout entry: `~/.config/wlogout/layout`
+- CSS selector: `#sleep` (in `style.css`)
+- Icon: `sleep.png` / `sleep-hover.png`
+- Keybind `z` (chosen for "zzz", avoids duplicate with shutdown's `s`)
+
+### Wlogout Hibernate button (5th button, keybind `h`)
+- **Note:** Hibernate icon may not render due to PNG dimensions (384×512 vs others 512×512). Investigated but not fixed — separate issue.
+
+## Screenshot Keybind Table
+
+| Keybind | Script invocation | Description |
+|---|---|---|
+| `Print` | `screenshot.sh --area` | Slurp region, save + clipboard |
+| `Shift + Print` | `screenshot.sh --swappy` | Slurp region, open in swappy editor |
+| `Super + Ctrl + Print` | `screenshot.sh --in5` | 5-second countdown, full screen |
+| `XF86Favorites` | (one-liner `grim - \| wl-copy`) | Legacy full-screen key |
+
+`Shift + Print` was changed from `--now` (full screen) to `--swappy` per Phase 4 finalization. `--now` is still accessible via `screenshot.sh --now` directly.
 
 ## Rollback Procedures
 
@@ -106,13 +220,13 @@ Manual mode: wallpaper change only, theme stays.
 ```bash
 cp ~/.config/hypr/hyprlock.conf.before-redesign ~/.config/hypr/hyprlock.conf
 ```
-Restores Session 2.2 working version.
+Restores the Session 2.2 working version (before cinematic redesign + subtle blur).
 
 ### theme-set (if state is corrupt)
 ```bash
 theme-set <known-good-theme-name>
 ```
-Re-validates and applies; restores all 5 symlinks + state file.
+Re-validates and applies; restores all 6 symlinks + state file.
 
 ### Wallpaper
 ```bash
@@ -126,7 +240,6 @@ wallpaper-restore
 ### Other scripts
 Backups live in:
 - `~/.config/hypr/backups/*.bak.<unix-ts>`
-- `~/.config/kitty/backups/` (if any)
 - `~/.config/hypr/backups/<file>.before-*` (named rollbacks like `hyprlock.conf.before-redesign`)
 
 Format: `cp <backup> <original>`
@@ -135,49 +248,58 @@ Format: `cp <backup> <original>`
 
 Run `~/.local/bin/theme-doctor` for a read-only sanity check of:
 - Current theme name
-- All 5 theme files exist
-- All 5 symlinks valid (no drift)
-- Daemon status (swaync, hypridle, swww-daemon, wl-paste, waybar)
+- All 6 themed files exist
+- All 6 symlinks valid (no drift)
+- Daemon status (swaync, hypridle, swww, wl-paste, waybar)
 - theme-mode file
 - Wallpaper cache symlink
 
 Exits non-zero on any failure.
 
-## Keybinds (as of Session 4)
+## Keybinds Reference
 
-| Key | Action |
-|---|---|
-| `Super+Q` | Kill active window |
-| `Super+W` | Wallpaper picker (rofi → wallpaper-set) |
-| `Super+L` | Lock screen (hyprlock) |
-| `Super+M` | Logout menu (wlogout) |
-| `Super+N` | Toggle Do Not Disturb (swaync) |
-| `Super+T` | Theme picker (rofi → theme-set) |
-| `Super+E` | File manager |
-| `Super+D` | App launcher (rofi) |
-| `Super+F` | Toggle fullscreen |
-| `Super+J` | Toggle split |
-| `Super+V` | Toggle floating |
-| `Super+R` | Restart waybar |
-| `Super+P` | Toggle pseudo-tiling |
-| `Super+Shift+N` | Toggle notification panel (swaync) |
-| `Super+Alt+V` | Clipboard manager (cliphist history via rofi) |
-| `Super+Print` | Screenshot — area (one-liner, kept) |
-| `Super+Shift+Print` | Screenshot — area with decoration (one-liner, kept) |
-| XF86AudioRaiseVolume | Volume up (wpctl) |
-| XF86AudioLowerVolume | Volume down (wpctl) |
-| XF86AudioMute | Toggle mute (wpctl) |
-| XF86AudioMicMute | Toggle mic mute (wpctl) |
-| XF86AudioNext | Next track (playerctl) |
-| XF86AudioPrev | Previous track (playerctl) |
-| XF86AudioPlay | Play/pause (playerctl) |
-| XF86AudioPause | Play/pause (playerctl) |
-| Brightness keys | Brightness up/down (custom dual-monitor script) |
+| Key | Action | Notes |
+|---|---|---|
+| `Super+Q` | Kill active window | |
+| `Super+W` | Wallpaper picker (rofi) | Uses `style-dmenu.rasi` |
+| `Super+L` | Lock screen (hyprlock) | |
+| `Super+M` | Logout menu (wlogout) | 6 buttons, theme-aware |
+| `Super+N` | Toggle Do Not Disturb (swaync) | |
+| `Super+T` | (reserved for future use) | |
+| `Super+E` | File manager | |
+| `Super+D` | App launcher (rofi) | Uses `style-1.rasi`, toggle via `$menu` |
+| `Super+F` | Toggle fullscreen | |
+| `Super+J` | Toggle split | |
+| `Super+V` | Toggle floating | |
+| `Super+R` | Restart waybar | |
+| `Super+P` | Toggle pseudo-tiling | |
+| `Super+Shift+N` | Toggle SwayNC panel | |
+| `Super+Shift+T` | Theme picker (rofi) | Uses `style-dmenu.rasi` |
+| `Super+Shift+S` | Toggle scratchpad | |
+| `Super+Alt+V` | Clipboard manager (cliphist) | Uses `style-dmenu.rasi`, toggle |
+| `Super+Print` | Screenshot — area | `screenshot.sh --area` |
+| `Super+Shift+Print` | Screenshot — open swappy | `screenshot.sh --swappy` |
+| `Super+Ctrl+Print` | Screenshot — 5s delay | `screenshot.sh --in5` |
+| `XF86Favorites` | Full screen screenshot | One-liner `grim - \| wl-copy` |
+| `XF86AudioRaiseVolume` | Volume up | wpctl |
+| `XF86AudioLowerVolume` | Volume down | wpctl |
+| `XF86AudioMute` | Toggle mute | wpctl |
+| `XF86AudioMicMute` | Toggle mic mute | wpctl |
+| `XF86AudioNext` | Next track | playerctl |
+| `XF86AudioPrev` | Previous track | playerctl |
+| `XF86AudioPlay` | Play/pause | playerctl |
+| `XF86AudioPause` | Play/pause | playerctl |
+| `XF86MonBrightnessUp` | Laptop brightness +5% | Custom `brightness` script |
+| `XF86MonBrightnessDown` | Laptop brightness -5% | Custom `brightness` script |
+| `Super+XF86MonBrightnessUp` | External monitor +5% | ddcutil backend |
+| `Super+XF86MonBrightnessDown` | External monitor -5% | ddcutil backend |
 
 ## Backup Files
 
 This repo also includes a **named backup** pattern for full-version rollbacks:
-- `home/.config/hypr/hyprlock.conf.before-redesign` — Session 2.2 working hyprlock
+- `home/.config/hypr/hyprlock.conf.before-redesign` — Session 2.2 working hyprlock (pre-cinematic-redesign)
+- `home/.config/hypr/hyprlock.conf.before-blur` — Pre-blur hyprlock (Session 3 step 1)
+- `home/.config/hypr/hyprlock.conf.before-hibernate-fix` — Before hibernate icon investigation
 
 ## Repo Sync Convention
 
@@ -189,11 +311,19 @@ cd /home/senthan/hyprland-dots && git add -A && git commit -m "..." && git push
 
 ## Daemons
 
-Five daemons run via autostart:
+Six daemons run via autostart:
 - `swww-daemon` — wallpaper daemon
-- `~/.local/bin/wallpaper-restore` — boot wallpaper restoration
+- `~/.local/bin/wallpaper-restore` — boot wallpaper restoration (5s daemon-ready poll)
 - `waybar` — top bar
 - `swaync` — notifications
-- `hypridle` — idle → hyprlock → suspend
+- `hypridle` — idle → hyprlock → suspend (300s / 900s)
 
 `wl-paste` watchers for cliphist run separately.
+
+## Pending / Deferred Items
+
+The following are intentionally deferred from prior phases and NOT in scope for current rice:
+- `toggle.sh` / `Sounds.sh` from HyprNova (animations + system sounds) — not adopted
+- Goal B from Phase 4: scripts dir migration to `~/.config/hypr/scripts/` — not adopted
+- Theme-aware hyprlock colors — explicitly kept neutral per Session 3 decision
+- Hibernate icon size mismatch — known issue, under investigation
