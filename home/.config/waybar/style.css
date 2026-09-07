@@ -1,73 +1,217 @@
 @import "themes/current.css";
 
+/* HANCORE-style: "islands" — each module is its own rounded pill with transparent gaps. */
+
 * {
     all: unset;
     font-family: "JetBrainsMono Nerd Font Propo", "Google Sans Flex", sans-serif;
     font-size: 14px;
+    min-height: 0;
 }
 
-tooltip{
-    background-color: @bg1;
+/* ─── TOOLTIPS (theme-aware via @define-color) ─── */
+tooltip {
+    background-color: alpha(@bg0, 0.95);
+    border: 1px solid alpha(@blue, 0.5);
+    border-radius: 8px;
+}
+tooltip label {
     color: @fg;
-    border-radius: 12px;
+    padding: 4px 8px;
 }
 
+/* ─── BAR LAYOUT — three sections (workspaces | system | tray) ─── */
+.modules-left {
+    padding: 0 8px;
+}
+.modules-right {
+    padding: 0 8px;
+}
+
+/* ─── CENTER GROUP — single continuous menubar (one pill, no internal divisions) ─── */
 .modules-center {
     background-color: @bg1;
-    color: @fg;
-    padding: 4px 18px;
     border-radius: 99px;
-
+    padding: 2px 6px;
+    margin: 0 4px;
 }
 
-#clock {
-    font-weight: 500;
+/* Center modules: text-only inside the group pill — no individual background,
+   no rounded corners, no dividers. They blend into one continuous menubar. */
+#clock,
+#pulseaudio,
+#pulseaudio#microphone,
+#bluetooth,
+#network {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0 12px;
+    margin: 0;
+    transition: all 200ms ease-in-out;
 }
 
+/* Per-module hover: subtle green tint inside the bar */
+#clock:hover,
+#pulseaudio:hover,
+#pulseaudio#microphone:hover,
+#bluetooth:hover,
+#network:hover {
+    background-color: alpha(@green, 0.18);
+}
+
+/* State colors stay (muted, etc.) */
+#pulseaudio.muted,
+#pulseaudio#microphone.muted {
+    color: @red;
+}
+
+/* ─── WORKSPACES (left) — pill container, buttons fill the pill height ─── */
 #workspaces {
-    min-width: 100px;
     background-color: @bg2;
-    font-size: 0.95rem;
-    padding: 2px 3px;
-    margin: 3px 0;
     border-radius: 99px;
+    padding: 2px 6px;
+    margin: 0;
 }
 
 #workspaces button {
     background-color: @bg3;
-    padding: 0px 5px;
+    padding: 4px 10px;
     border-radius: 99px;
-    margin: 0 2px;
-    transition: all 300ms ease-in-out;
-    min-width: 7px;
+    margin: 0 1px;
+    transition: all 200ms ease-in-out;
+    min-width: 14px;
+    color: @fg;
 }
-
 #workspaces button.empty {
     color: @grey0;
 }
-
 #workspaces button.active {
     background-color: @green;
-    color: @bg1;
+    color: @bg0;
     min-width: 1.5rem;
     font-weight: 500;
     transition: none;
 }
+#workspaces button:hover {
+    background-color: alpha(@green, 0.6);
+    box-shadow: inset 0 -2px @green;
+}
+#workspaces button.urgent {
+    background-color: @red;
+}
 
-#battery{
-    background-color: @green;
-    margin: 6px 0;
-    padding: 0 8px;
-    border-radius: 99px;
+/* ─── CLOCK (center) — sub-pill inside the .modules-center group, with state-based color ─── */
+#clock {
+    color: @fg;
     font-weight: 500;
-    color: @bg1;
+}
+
+/* ─── PULSEAUDIO (center) — sub-pill with state-based colors ─── */
+#pulseaudio {
+    color: @fg;
+}
+#pulseaudio.muted {
+    color: @red;
+}
+
+/* ─── PULSEAUDIO MIC (center) — sub-pill with muted-state color ─── */
+#pulseaudio#microphone {
+    color: @fg;
+}
+#pulseaudio#microphone.muted {
+    color: @red;
+}
+
+/* ─── BLUETOOTH (center) — sub-pill with connection-state color ─── */
+#bluetooth {
+    color: @fg;
+}
+#bluetooth.connected {
+    color: @blue;
+}
+#bluetooth.off,
+#bluetooth.disabled {
+    color: @grey0;
+}
+
+/* ─── NETWORK (center) — sub-pill with connection-state color ─── */
+#network {
+    color: @fg;
+}
+#network.disconnected {
+    color: @grey0;
+}
+
+/* ─── IDLE INHIBITOR (right) — pill, color changes when active ─── */
+#idle_inhibitor {
+    background-color: @bg2;
+    color: @fg;
+    border-radius: 99px;
+    padding: 0 12px;
+    margin: 0 4px;
+    transition: all 200ms ease-in-out;
+}
+#idle_inhibitor:hover {
+    background-color: alpha(@yellow, 0.3);
+}
+#idle_inhibitor.activated {
+    background-color: @yellow;
+    color: @bg0;
+    font-weight: 500;
+}
+
+/* ─── MPRIS (right) — pill (media player) ─── */
+#mpris {
+    background-color: @bg3;
+    color: @fg;
+    border-radius: 99px;
+    padding: 0 14px;
+    margin: 0 4px;
+    min-width: 80px;
+    transition: all 200ms ease-in-out;
+}
+#mpris:hover {
+    background-color: alpha(@purple, 0.3);
+}
+#mpris.paused {
+    color: @grey0;
+}
+#mpris.playing {
+    color: @fg;
+}
+
+/* ─── TRAY (right) — pill container for system tray icons ─── */
+#tray {
+    background-color: @bg2;
+    border-radius: 99px;
+    padding: 0 10px;
+    margin: 0 4px;
+}
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+#tray > .needs-attention {
+    background-color: alpha(@red, 0.4);
+    border-radius: 99px;
+}
+
+/* ─── BATTERY (right) — pill, color changes by state ─── */
+#battery {
+    background-color: @green;
+    color: @bg0;
+    border-radius: 99px;
+    padding: 0 12px;
+    margin: 0 4px;
+    font-weight: 500;
     letter-spacing: -1px;
 }
-
-#battery.warning{
+#battery.warning {
     background-color: @yellow;
 }
-
-#battery.critical{
+#battery.critical {
     background-color: @red;
+}
+#battery.charging {
+    background-color: @aqua;
 }

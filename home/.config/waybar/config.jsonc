@@ -1,17 +1,32 @@
 {
     "spacing": 18,
     "margin-top": 20,
+
+    "modules-left": [
+        "hyprland/workspaces"
+    ],
+
     "modules-center": [
         "clock",
-        "hyprland/workspaces",
         "pulseaudio",
-        "network",
+        "pulseaudio#microphone",
+        "bluetooth",
+        "network"
+    ],
+
+    "modules-right": [
+        "idle_inhibitor",
+        "mpris",
+        "tray",
         "battery"
     ],
+
     "clock": {
         "interval": 60,
-        "format": "{:%I:%M %P}"
+        "format": "{:%I:%M %p}",
+        "tooltip": false
     },
+
     "hyprland/workspaces": {
         "format": "{icon}",
         "format-icons": {
@@ -48,10 +63,11 @@
         "on-scroll-down": "hyprctl dispatch workspace e+1",
         "on-scroll-up": "hyprctl dispatch workspace e-1"
     },
+
     "pulseaudio": {
         "format": "{volume}% {icon}",
-        "format-bluetooth": "{volume}% {icon}\uf294",
-        "format-muted": "\uf026",
+        "format-bluetooth": "{volume}% \uf294",
+        "format-muted": "Muted ",
         "format-icons": {
             "headphone": "\uf025",
             "hands-free": "\udb80\udc91",
@@ -61,17 +77,53 @@
             "portable": "\uf095",
             "car": "\uf1b9",
             "default": [
-                "\uf027",
-                "\uf028"
+                "",
+                "",
+                ""
             ]
         },
         "scroll-step": 1,
         "on-click": "pavucontrol"
     },
+
+    "pulseaudio#microphone": {
+        "format": "{format_source}",
+        "format-source": "{volume}% \uf130",
+        "format-source-muted": "Muted \uf131",
+        "format-icons": {
+            "default": [
+                "off",
+                "low",
+                "high"
+            ]
+        },
+        "on-click": "pavucontrol"
+    },
+
+    "bluetooth": {
+        "format": "{status}",
+        "format-connected": "\uf294 {device_enumerate}",
+        "format-disabled": " 󰂲",
+        "format-off": " 󰂱",
+        "format-on": " 󰂯",
+        "tooltip-format": "{controller_alias} {device_enumerate}",
+        "tooltip-format-connected": "{controller_alias}\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "{device_alias}",
+        "on-click": "blueman-manager",
+        "on-click-right": "bluetoothctl show"
+    },
+
     "network": {
         "interface": "wlo1",
         "format": "{ifname}",
-        "format-wifi": "{essid} ({signalStrength}%) \uf1eb",
+        "format-wifi": "{essid} {icon}",
+        "format-icons": [
+            "󰤯",
+            "󰤟",
+            "󰤢",
+            "󰤥",
+            "󰤨"
+        ],
         "format-ethernet": "{ifname} \uf0c1",
         "format-disconnected": "",
         "tooltip-format": "{ifname}",
@@ -80,14 +132,50 @@
         "tooltip-format-disconnected": "Disconnected",
         "max-length": 50
     },
+
+    "idle_inhibitor": {
+        "format": "{icon}",
+        "format-icons": {
+            "activated": "\udb80\udd50",
+            "deactivated": "\udb80\udd51"
+        },
+        "tooltip-format": "{status}",
+        "tooltip-format-activated": "Idle inhibition active",
+        "tooltip-format-deactivated": "Idle inhibition inactive"
+    },
+
+    "mpris": {
+        "format": "{player_icon} {title}",
+        "format-pause": " {status} ",
+        "format-stopped": "{player_icon}Stopped",
+        "format-icons": {
+            "spotify": "\uf1bc",
+            "default": "\uf001"
+        },
+        "max-length": 40,
+        "on-click": "playerctl play-pause",
+        "on-click-middle": "playerctl stop",
+        "on-scroll-up": "playerctl volume-up",
+        "on-scroll-down": "playerctl volume-down"
+    },
+
+    "tray": {
+        "icon-size": 18,
+        "spacing": 8
+    },
+
     "battery": {
-        "format": "{capacity}% {icon}",
+        "format": "{capacity}",
         "format-icons": [
             "\uf244",
             "\uf243",
             "\uf242",
             "\uf241",
             "\uf240"
-        ]
+        ],
+        "states": {
+            "warning": 30,
+            "critical": 15
+        }
     }
 }
